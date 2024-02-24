@@ -5,273 +5,224 @@
 #include <std_msgs/Bool.h>
 #include <std_msgs/Float32.h>
 #include <Arduino.h>
-#include <HardwareSerial.h> //for scale
 
-// ----- MAIN CONVEYOR -----
+// ----- OUTTAKE -----
 
-MODULE* main_conveyor_module;
-int EDGE_BEAM_BREAK_PIN = D2; 
-int CENTER_BEAM_BREAK_PIN = D3; //TODO: VERIFY PIN NUMBER
-int SPEED_PIN = A0;
-int INVERT_PIN = D13;
+MODULE* outtake_module;
+int OUTTAKE_BEAM_BREAK_PIN = D10; //TODO: VERIFY PIN NUMBER
+int OUTTAKE_SPEED_PIN = A0;  //TODO: VERIFY PIN NUMBER
+int OUTTAKE_INVERT_PIN = D13;  //TODO: VERIFY PIN NUMBER
 
-enum CONVEYOR_STATE {
-    CONVEYOR_IDLE = 0, 
-    ADVANCING_TO_NEXT_DISC_EDGE = 1,
-    WAITING_FOR_INTAKE = 2,
-    MOVING_TO_CENTER = 3, 
-    BACKUP = 4};
-CONVEYOR_STATE conveyor_state = CONVEYOR_STATE::CONVEYOR_IDLE; 
+enum OUTTAKE_STATE {
+    OUTTAKE_IDLE = 0, 
+    };
+OUTTAKE_STATE outtake_state = OUTTAKE_STATE::OUTTAKE_IDLE; 
 
-long last_conveyor_center_time = millis();
-
-void move_forward(int speed = 230) {
-  digitalWrite(INVERT_PIN, LOW);
-  analogWrite(SPEED_PIN, speed); // start
-  loginfo("conveyor moving forward");
+void outtake_move_forward(int speed = 230) {
+  digitalWrite(OUTTAKE_INVERT_PIN, LOW);
+  analogWrite(OUTTAKE_SPEED_PIN, speed); // start
+  loginfo("outtake moving forward");
 }
 
-void move_backward(int speed = 230) {
-  digitalWrite(INVERT_PIN, HIGH);
-  analogWrite(SPEED_PIN, speed); // start
-  loginfo("conveyor moving backward");
+void outtake_move_backward(int speed = 230) {
+  digitalWrite(OUTTAKE_INVERT_PIN, HIGH);
+  analogWrite(OUTTAKE_SPEED_PIN, speed); // start
+  loginfo("outtake moving backward");
 }
 
-bool edge_beam_broken() {
-  return (digitalRead(EDGE_BEAM_BREAK_PIN) == 0);
+bool outtake_beam_broken() {
+  return (digitalRead(OUTTAKE_BEAM_BREAK_PIN) == 0);
 }
 
-bool center_beam_broken() {
-  return (digitalRead(CENTER_BEAM_BREAK_PIN) == 0);
+void start_outtake() {
+  //outtake_state = OUTTAKE_STATE
+  outtake_move_forward();
 }
 
-void start_conveyor() {
-  if (conveyor_state == CONVEYOR_STATE::CONVEYOR_IDLE) {
-    loginfo("start_conveyor in IDLE --> moving to center");
-    conveyor_state = CONVEYOR_STATE::ADVANCING_TO_NEXT_DISC_EDGE;
-    move_forward();
-  } else if (conveyor_state == CONVEYOR_STATE::WAITING_FOR_INTAKE) {
-    loginfo("start_conveyor in WAITING FOR INTAKE --> advancing to next disc edge");
-    conveyor_state = CONVEYOR_STATE::MOVING_TO_CENTER;
-    move_forward();
-  } else {
-    logwarn("start_conveyor called in invalid state, " + String((int)conveyor_state));
-  
-  }
-  
-}
-
-void stop_conveyor() {
-  analogWrite(SPEED_PIN, 0); // stop
-  if (conveyor_state != CONVEYOR_STATE::CONVEYOR_IDLE) {
+void stop_outtake() {
+  analogWrite(OUTTAKE_SPEED_PIN, 0); // stop
+  if (outtake_state != OUTTAKE_STATE::OUTTAKE_IDLE) {
     loginfo("stop");
-    conveyor_state = CONVEYOR_STATE::CONVEYOR_IDLE;
+    outtake_state = OUTTAKE_STATE::OUTTAKE_IDLE;
   }
 }
 
-void calibrate_conveyor() {
-  loginfo("calibrate conveyor; TODO"); //TODO: Implement calibration
+void calibrate_outtake() {
+  loginfo("calibrate outtake; TODO"); //TODO: Implement calibration
 }
 
-void check_conveyor() {
-  switch (conveyor_state){
-    case CONVEYOR_STATE::ADVANCING_TO_NEXT_DISC_EDGE:
-      if (edge_beam_broken()) {
-        stop_conveyor();
-        conveyor_state = CONVEYOR_STATE::WAITING_FOR_INTAKE;
-      }
-      break;
-    case CONVEYOR_STATE::WAITING_FOR_INTAKE:
-      // next state is triggered by signal from intake module via Pi
-      break;
-    case CONVEYOR_STATE::MOVING_TO_CENTER:
-      if (center_beam_broken()) {
-        conveyor_state = CONVEYOR_STATE::BACKUP;
-        move_backward();
-      }
-      break;
-    case CONVEYOR_STATE::BACKUP:
-      if (edge_beam_broken()) {
-        stop_conveyor();
-        conveyor_state = CONVEYOR_STATE::CONVEYOR_IDLE;
-        main_conveyor_module->publish_status(MODULE_STATUS::COMPLETE);
-      }
-      break;
-    case CONVEYOR_STATE::CONVEYOR_IDLE:
-      stop_conveyor();
+void check_outtake() {
+  switch (outtake_state){
+    case OUTTAKE_STATE::OUTTAKE_IDLE:
+      stop_outtake();
       break;
     default:
-      logwarn("Invalid conveyor state");
+      logwarn("Invalid outtake state");
       break;
   }
-  main_conveyor_module->publish_state((int) conveyor_state);
+  outtake_module->publish_state((int) outtake_state);
 }
 
-bool verify_conveyor_complete() {
-  return conveyor_state == CONVEYOR_STATE::CONVEYOR_IDLE;
+bool verify_outtake_complete() {
+  return outtake_state == OUTTAKE_STATE::OUTTAKE_IDLE;
 }
 
-// ----- SCALE -----
+// ----- LABEL TAMPER -----
 
-MODULE* scale_module;
-#define SCALE_SERIAL__RX_PIN D4
-#define SCALE_SERIAL__TX_PIN D5 //not used
+MODULE* label_tamper_module;
+int TAMPER_NEAR_SWITCH_PIN = D10; //TODO: VERIFY PIN NUMBER
+int TAMPER_FAR_SWITCH_PIN = D10; //TODO: VERIFY PIN NUMBER
+int TAMPER_SPEED_PIN = A0;  //TODO: VERIFY PIN NUMBER
+int TAMPER_INVERT_PIN = D13;  //TODO: VERIFY PIN NUMBER
 
-#define SCALE_RELAY__POWER_PIN D11 // D6
-#define SCALE_RELAY__TARE_PIN D12 // D7
+enum LABEL_TAMPER_STATE {
+  LABEL_TAMPER_IDLE = 0, 
+};
+LABEL_TAMPER_STATE label_tamper_state = LABEL_TAMPER_STATE::LABEL_TAMPER_IDLE; 
 
-HardwareSerial scaleSerial(SCALE_SERIAL__RX_PIN, SCALE_SERIAL__TX_PIN); // RX, TX
-const byte numChars = 16;
-float lastWeight = 0.0;
-char receivedChars[numChars];
-
-std_msgs::Float32 weight_msg;
-String _weight_topic("scale_feedback__weight");
-ros::Publisher weight_feedback_pub(_weight_topic.c_str(), &weight_msg);
-
-enum SCALE_STATE {
-    SCALE_IDLE = 0,
-    MEASURING = 1, 
-    TARING = 2,
-    POWERING_ON = 3,
-    POWERING_OFF = 4};
-SCALE_STATE scale_state = SCALE_STATE::SCALE_IDLE;
-
-unsigned long last_scale_data_time = millis();
-unsigned long start_scale_action_time = millis();
-
-
-void toggleScalePower() {
-    digitalWrite(SCALE_RELAY__POWER_PIN, HIGH);
-    delay(2000);
-    digitalWrite(SCALE_RELAY__POWER_PIN, LOW);
+void tamper_move_forward(int speed = 230) {
+  digitalWrite(TAMPER_INVERT_PIN, LOW);
+  analogWrite(TAMPER_SPEED_PIN, speed); // start
+  loginfo("tamper moving forward");
 }
 
-void toggleScaleTare() {
-    digitalWrite(SCALE_RELAY__TARE_PIN, HIGH);
-    delay(2000);
-    digitalWrite(SCALE_RELAY__TARE_PIN, LOW);
+void tamper_move_backward(int speed = 230) {
+  digitalWrite(TAMPER_INVERT_PIN, HIGH);
+  analogWrite(TAMPER_SPEED_PIN, speed); // start
+  loginfo("tamper moving backward");
 }
 
-void start_scale() {
-  loginfo("start scale");
-  start_scale_action_time = millis();
-  scale_state = SCALE_STATE::MEASURING;
+void start_tamper() {
+  //outtake_state = LABEL_TAMPER_STATE
+  tamper_move_forward();
 }
 
-void stop_scale() {
-  loginfo("stop scale");
-  scale_state = SCALE_STATE::SCALE_IDLE;
-}
-
-void calibrate_scale() {
-  loginfo("calibrate scale; TODO"); //TODO: Implement calibration
-}
-
-void check_scale() {
-  switch (scale_state) {
-  case SCALE_STATE::MEASURING:
-    if (start_scale_action_time+1500 < millis()) { //measurement complete
-      weight_msg.data = lastWeight;
-      scale_module->publish_status(MODULE_STATUS::COMPLETE);
-      scale_state = SCALE_STATE::SCALE_IDLE;
-      loginfo("scale measurement complete");
-    }
-    break;
-  case SCALE_STATE::TARING:
-    if (start_scale_action_time+2000 < millis()) { //button press complete
-      digitalWrite(SCALE_RELAY__TARE_PIN, LOW);
-      scale_state = SCALE_STATE::SCALE_IDLE;
-    }
-    break;
-  case SCALE_STATE::POWERING_ON:
-    if (start_scale_action_time+2000 < millis()) { //button press complete
-      digitalWrite(SCALE_RELAY__POWER_PIN, LOW);
-      scale_state = SCALE_STATE::SCALE_IDLE;
-    }
-    break;
-  case SCALE_STATE::POWERING_OFF:
-    if (start_scale_action_time+2000 < millis()) { //button press complete
-      digitalWrite(SCALE_RELAY__POWER_PIN, LOW);
-      scale_state = SCALE_STATE::SCALE_IDLE;
-    }
-    break;
-  case SCALE_STATE::SCALE_IDLE:
-    break;
-  default:
-    break;
+void stop_tamper() {
+  analogWrite(TAMPER_SPEED_PIN, 0); // stop
+  if (label_tamper_state != LABEL_TAMPER_STATE::LABEL_TAMPER_IDLE) {
+    loginfo("stop");
+    label_tamper_state = LABEL_TAMPER_STATE::LABEL_TAMPER_IDLE;
   }
-  scale_module->publish_state((int) scale_state);
-
-  //TODO: Implement scale power on
-  // if (last_scale_data_time+1000 < millis()) { //If we haven't heard from the scale, turn it on!
-  //   scale_state = SCALE_STATE::POWERING_ON;
-  // }
 }
 
-bool verify_scale_complete() {
-  return scale_state == SCALE_STATE::SCALE_IDLE;
+void calibrate_tamper() {
+  loginfo("calibrate label tamper; TODO"); //TODO: Implement calibration
 }
 
-void parseIncomingData() {
-    static bool recvInProgress = false;
-    static byte ndx = 0;
-    char rc;
-    char startMarker = '+';
-    char endMarker = '\n'; 
- 
-    while (scaleSerial.available() > 0) {
-        rc = scaleSerial.read();
-        if (recvInProgress == true) {
-            if (rc != endMarker) {
-                receivedChars[ndx] = rc;
-                ndx++;
-                if (ndx >= numChars) ndx = numChars - 1;
-            } else {
-                receivedChars[ndx] = '\0'; // terminate the string
-                recvInProgress = false;
-                ndx = 0;
-                if (atoff(receivedChars) != lastWeight) {
-                    lastWeight = atoff(receivedChars);
-                    //if (scale_state == SCALE_STATE::MEASURING) {
-                      weight_msg.data = lastWeight;
-                      weight_feedback_pub.publish(&weight_msg);
-                    //}
-                }
-            }
-        } else if (rc == startMarker) {
-            recvInProgress = true;
-        }
-    }
+void check_tamper() {
+  switch (outtake_state){
+    case LABEL_TAMPER_STATE::LABEL_TAMPER_IDLE:
+      stop_tamper();
+      break;
+    default:
+      logwarn("Invalid label tamper state");
+      break;
+  }
+  label_tamper_module->publish_state((int) label_tamper_state);
+}
+
+bool verify_tamper_complete() {
+  return label_tamper_state == LABEL_TAMPER_STATE::LABEL_TAMPER_IDLE;
+}
+
+// ----- BOX_CONVEYOR -----
+
+MODULE* box_conveyor_module;
+int BOX_CONVEYOR_BEAM_BREAK_PIN = D10; //TODO: VERIFY PIN NUMBER
+int BOX_CONVEYOR_SPEED_PIN = A0;  //TODO: VERIFY PIN NUMBER
+int BOX_CONVEYOR_INVERT_PIN = D13;  //TODO: VERIFY PIN NUMBER
+
+enum BOX_CONVEYOR_STATE {
+  BOX_CONVEYOR_IDLE = 0, 
+};
+BOX_CONVEYOR_STATE box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE; 
+
+void box_conveyor_move_forward(int speed = 230) {
+  digitalWrite(BOX_CONVEYOR_INVERT_PIN, LOW);
+  analogWrite(BOX_CONVEYOR_SPEED_PIN, speed); // start
+  loginfo("box_conveyor moving forward");
+}
+
+void box_conveyor_move_backward(int speed = 230) {
+  digitalWrite(BOX_CONVEYOR_INVERT_PIN, HIGH);
+  analogWrite(BOX_CONVEYOR_SPEED_PIN, speed); // start
+  loginfo("box_conveyor moving backward");
+}
+
+bool box_conveyor_beam_broken() {
+  return (digitalRead(BOX_CONVEYOR_BEAM_BREAK_PIN) == 0);
+}
+
+void start_box_conveyor() {
+  //box_conveyor_state = BOX_CONVEYOR_STATE
+  box_conveyor_move_forward();
+}
+
+void stop_box_conveyor() {
+  analogWrite(BOX_CONVEYOR_SPEED_PIN, 0); // stop
+  if (box_conveyor_state != BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE) {
+    loginfo("stop");
+    box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
+  }
+}
+
+void calibrate_box_conveyor() {
+  loginfo("calibrate box_conveyor; TODO"); //TODO: Implement calibration
+}
+
+void check_box_conveyor() {
+  switch (box_conveyor_state){
+    case BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE:
+      stop_box_conveyor();
+      break;
+    default:
+      logwarn("Invalid box_conveyor state");
+      break;
+  }
+  box_conveyor_module->publish_state((int) box_conveyor_state);
+}
+
+bool verify_box_conveyor_complete() {
+  return box_conveyor_state == BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
 }
 
 // ----- loop/setup functions -----
 void setup() {
   init_std_node();
-  scale_module = init_module("scale",
-    start_scale, 
-    verify_scale_complete, 
-    stop_scale,
-    calibrate_scale);
-  main_conveyor_module = init_module("main_conveyor",
-    start_conveyor, 
-    verify_conveyor_complete, 
-    stop_conveyor,
-    calibrate_conveyor);
-  
-  //Register ROS publishers
-  nh.advertise(weight_feedback_pub);
-  
-  // conveyor pins 
-  pinMode(EDGE_BEAM_BREAK_PIN, INPUT_PULLUP) ;
-  pinMode(CENTER_BEAM_BREAK_PIN, INPUT_PULLUP) ;
-  pinMode(SPEED_PIN,OUTPUT) ;
-  pinMode(INVERT_PIN, OUTPUT) ;
 
-  // scale pins
-  scaleSerial.begin(9600);
-  pinMode(SCALE_RELAY__POWER_PIN, OUTPUT);
-  pinMode(SCALE_RELAY__TARE_PIN, OUTPUT);
+  outtake_module = init_module("outtake",
+    start_outtake, 
+    verify_outtake_complete, 
+    stop_outtake,
+    calibrate_outtake);
+
+  label_tamper_module = init_module("label_tamper",
+    start_tamper, 
+    verify_tamper_complete, 
+    stop_tamper,
+    calibrate_tamper);
+
+  box_conveyor_module = init_module("box_conveyor",
+    start_box_conveyor, 
+    verify_box_conveyor_complete, 
+    stop_box_conveyor,
+    calibrate_box_conveyor);
+  
+  // outtake pins 
+  pinMode(OUTTAKE_BEAM_BREAK_PIN, INPUT_PULLUP) ;
+  pinMode(OUTTAKE_SPEED_PIN,OUTPUT) ;
+  pinMode(OUTTAKE_INVERT_PIN, OUTPUT) ;
+
+  // label tamper pins
+  pinMode(TAMPER_NEAR_SWITCH_PIN, INPUT_PULLUP) ;
+  pinMode(TAMPER_FAR_SWITCH_PIN, INPUT_PULLUP) ;
+  pinMode(TAMPER_SPEED_PIN,OUTPUT) ;
+  pinMode(TAMPER_INVERT_PIN, OUTPUT) ;
+
+  // box conveyor pins
+  pinMode(BOX_CONVEYOR_BEAM_BREAK_PIN, INPUT_PULLUP) ;
+  pinMode(BOX_CONVEYOR_SPEED_PIN,OUTPUT) ;
+  pinMode(BOX_CONVEYOR_INVERT_PIN, OUTPUT) ;
 
   loginfo("setup() Complete");
 }
@@ -280,14 +231,12 @@ void setup() {
 void loop() {
   periodic_status();
   nh.spinOnce();
-  parseIncomingData();
-  check_scale();
-  check_conveyor();
+  check_outtake();
+  check_tamper();
 
   // ----- testing ----- 
   // if (verify_motion_complete()) {
   //   loginfo("debugging test reset");
   //   delay(5000);
-  //   start_conveyor();
   // }
 }
