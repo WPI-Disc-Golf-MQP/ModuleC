@@ -6,6 +6,11 @@
 #include <std_msgs/Float32.h>
 #include <Arduino.h>
 
+#include <SPI.h>
+#include <Wire.h>
+#include "Adafruit_VL6180X.h"
+Adafruit_VL6180X vl = Adafruit_VL6180X();
+
 // ----- OUTTAKE -----
 
 MODULE* outtake_module;
@@ -137,6 +142,48 @@ enum BOX_CONVEYOR_STATE {
 };
 BOX_CONVEYOR_STATE box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE; 
 
+uint8_t read_distance() {
+  
+  uint8_t range = vl.readRange();
+  uint8_t status = vl.readRangeStatus();
+
+  if (status == VL6180X_ERROR_NONE) return range;
+  
+  // Some error occurred, print it out!
+  Serial.print("Error: ");
+  
+  if  ((status >= VL6180X_ERROR_SYSERR_1) && (status <= VL6180X_ERROR_SYSERR_5)) {
+    logerr("*** VL6180X System error");
+  }
+  else if (status == VL6180X_ERROR_ECEFAIL) {
+    logerr("VL6180X: ECE failure");
+  }
+  else if (status == VL6180X_ERROR_NOCONVERGE) {
+    logerr("VL6180X: No convergence");
+  }
+  else if (status == VL6180X_ERROR_RANGEIGNORE) {
+    logerr("VL6180X: Ignoring range");
+  }
+  else if (status == VL6180X_ERROR_SNR) {
+    logerr("VL6180X: Signal/Noise ratio error");
+  }
+  else if (status == VL6180X_ERROR_RAWUFLOW) {
+    logerr("VL6180X: Raw reading underflow");
+  }
+  else if (status == VL6180X_ERROR_RAWOFLOW) {
+    logerr("VL6180X: Raw reading overflow");
+  }
+  else if (status == VL6180X_ERROR_RANGEUFLOW) {
+    logerr("VL6180X: Range reading underflow");
+  }
+  else if (status == VL6180X_ERROR_RANGEOFLOW) {
+    logerr("VL6180X: Range reading overflow");
+  } else {
+    logerr("VL6180X: Unknown error");
+  }
+  return -1;
+}
+
 void box_conveyor_move_forward(int speed = 230) {
   digitalWrite(BOX_CONVEYOR_INVERT_PIN, LOW);
   analogWrite(BOX_CONVEYOR_SPEED_PIN, speed); // start
@@ -223,6 +270,10 @@ void setup() {
   pinMode(BOX_CONVEYOR_BEAM_BREAK_PIN, INPUT_PULLUP) ;
   pinMode(BOX_CONVEYOR_SPEED_PIN,OUTPUT) ;
   pinMode(BOX_CONVEYOR_INVERT_PIN, OUTPUT) ;
+
+  if (! vl.begin()) {
+    logerr("*** Failed to find VL6180X (Box Conveyor Rangefinder) sensor");
+  } else loginfo("VL6180X (Box Conveyor Rangefinder) Sensor found!");
 
   loginfo("setup() Complete");
 }
