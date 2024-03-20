@@ -144,10 +144,12 @@ enum BOX_CONVEYOR_STATE {
 };
 BOX_CONVEYOR_STATE box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE; 
 
+Adafruit_VL6180X vl6180x;
+
 uint8_t read_distance() {
   
-  uint8_t range = vl.readRange();
-  uint8_t status = vl.readRangeStatus();
+  uint8_t range = vl6180x.readRange();
+  uint8_t status = vl6180x.readRangeStatus();
 
   if (status == VL6180X_ERROR_NONE) return range;
   
