@@ -153,6 +153,7 @@ bool verify_outtake_complete() {
 
  unsigned long unbroken_box_beam_start = 0;
  const unsigned long unbroken_box_beam_threshold = 6000;
+ uint8_t read_distance();
 
  void box_conveyor_move_forward(int speed = 230) {
    digitalWrite(BOX_CONVEYOR_INVERT_PIN, LOW);
@@ -170,8 +171,20 @@ bool verify_outtake_complete() {
    return (digitalRead(BOX_CONVEYOR_BEAM_BREAK_PIN) == 0);
  }
 
+bool move_box_conveyor = (read_distance() > 50) && !box_conveyor_beam_broken;
  void start_box_conveyor() {
-   box_conveyor_move_forward();
+    box_conveyor_move_forward();
+  // if(box_conveyor_state == BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE) {
+  //   loginfo("start_box_conveyor in IDLE --> advancing box");
+  //   box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE;
+  //   box_conveyor_move_forward();
+  // } else if (box_conveyor_state == BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE) {
+  //   if (move_box_conveyor) {
+  //     loginfo("start_box_conveyor in ADVANCE --> aligning box");
+  //     box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN;
+  //     box_conveyor_move_backward;
+  //     }
+  //   }
  }
 
  void stop_box_conveyor() {
@@ -187,14 +200,25 @@ bool verify_outtake_complete() {
  }
 
  void check_box_conveyor() {
-   switch (box_conveyor_state) {
+  unsigned long current_time = millis();
+
+  switch (box_conveyor_state) {
      case BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE:
+      if(box_conveyor_beam_broken() == true) {
+        unbroken_box_beam_start = current_time;
+      } else {
+        if (current_time -  unbroken_box_beam_start > unbroken_box_beam_threshold) {
+          stop_box_conveyor();
+          logerr("No boxes detected for too long. Add more boxes.");
+        }
+      }
 
        break;
      case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE:
        if (box_conveyor_beam_broken() == true) {
          start_box_conveyor();
          box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN;
+         unbroken_box_beam_start = current_time;
        }
        break;
      case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN:
@@ -210,8 +234,8 @@ bool verify_outtake_complete() {
  }
 
  uint8_t read_distance() {
-     uint8_t range = vl6180x.readRange();
-   uint8_t status = vl6180x.readRangeStatus();
+    uint8_t range = vl6180x.readRange();
+    uint8_t status = vl6180x.readRangeStatus();
 
    if (status == VL6180X_ERROR_NONE) return range;
   
@@ -312,17 +336,18 @@ void setup() {
 
 
 void loop() {
-  periodic_status();
-  nh.spinOnce();
-  check_outtake();
+  // periodic_status();
+  // nh.spinOnce();
+  // check_outtake();
   // check_tamper();
   check_box_conveyor();
 
   // ----- testing ----- 
-  // if (verify_motion_complete()) {
-  //   loginfo("debugging test reset");
-  //   delay(5000);
-  // }
+  if (verify_box_conveyor_complete()) {
+    loginfo("debugging test reset");
+    delay(5000);
+    start_box_conveyor();
+  }
   // uint8_t distance = read_distance();
 //   bool beam_break_block = box_conveyor_beam_broken();
 
