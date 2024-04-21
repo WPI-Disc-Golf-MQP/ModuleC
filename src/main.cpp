@@ -19,9 +19,15 @@ int OUTTAKE_SPEED_PIN = A1;
 int OUTTAKE_INVERT_PIN = D10;  
 
 enum OUTTAKE_STATE {
-    OUTTAKE_IDLE = 0, 
+    OUTTAKE_IDLE = 0,
+    OUTTAKE_SEND = 1,
+    OUTTAKE_RECIEVE = 2, 
     };
 OUTTAKE_STATE outtake_state = OUTTAKE_STATE::OUTTAKE_IDLE; 
+
+bool is_disc_present = false;
+long moved_to_OUTTAKE_RELEASE_time = millis();
+bool deposited_disc = false;
 
 void outtake_move_forward(int speed = 230) {
   digitalWrite(OUTTAKE_INVERT_PIN, LOW);
@@ -29,19 +35,32 @@ void outtake_move_forward(int speed = 230) {
   loginfo("outtake moving forward");
 }
 
-void outtake_move_backward(int speed = 230) {
-  digitalWrite(OUTTAKE_INVERT_PIN, HIGH);
-  analogWrite(OUTTAKE_SPEED_PIN, speed); // start
-  loginfo("outtake moving backward");
-}
+// void outtake_move_backward(int speed = 230) {
+//   digitalWrite(OUTTAKE_INVERT_PIN, HIGH);
+//   analogWrite(OUTTAKE_SPEED_PIN, speed); // start
+//   loginfo("outtake moving backward");
+// }
+
+bool val = 0;
 
 bool outtake_beam_broken() {
-  return (digitalRead(OUTTAKE_BEAM_BREAK_PIN) == 0);
+  if (digitalRead(OUTTAKE_BEAM_BREAK_PIN) != val) {
+    loginfo("Outtake beam break changed state to: "+String(digitalRead(OUTTAKE_BEAM_BREAK_PIN)));
+    val = digitalRead(OUTTAKE_BEAM_BREAK_PIN);
+  }
 }
 
 void start_outtake() {
   //outtake_state = OUTTAKE_STATE
-  outtake_move_forward();
+  loginfo("start outtake");
+  if (true) {
+    outtake_state = OUTTAKE_STATE::OUTTAKE_SEND;
+    moved_to_OUTTAKE_RELEASE_time = millis();
+    outtake_move_forward();
+  } else {
+    outtake_state = OUTTAKE_STATE::OUTTAKE_RECIEVE;
+  }
+  
 }
 
 void stop_outtake() {
@@ -61,11 +80,26 @@ void check_outtake() {
     case OUTTAKE_STATE::OUTTAKE_IDLE:
       stop_outtake();
       break;
+    case OUTTAKE_STATE::OUTTAKE_SEND:
+      if (moved_to_OUTTAKE_RELEASE_time+2000 < millis()) {
+        is_disc_present = false;
+        outtake_state = OUTTAKE_STATE::OUTTAKE_RECIEVE;
+        start_outtake();
+        outtake_move_forward();
+      }
+    case OUTTAKE_STATE::OUTTAKE_RECIEVE:
+      if (outtake_beam_broken()) {
+        is_disc_present = true;
+        outtake_state = OUTTAKE_STATE::OUTTAKE_IDLE;
+        outtake_module->publish_status(MODULE_STATUS::COMPLETE);
+      };
+      break;
     default:
       logwarn("Invalid outtake state");
       break;
   }
   outtake_module->publish_state((int) outtake_state);
+  outtake_beam_broken();
 }
 
 bool verify_outtake_complete() {
@@ -173,7 +207,10 @@ bool verify_outtake_complete() {
 
 bool move_box_conveyor = (read_distance() > 50) && !box_conveyor_beam_broken;
  void start_box_conveyor() {
+  nh.loginfo("Box conveyor is starting");
     box_conveyor_move_forward();
+
+
   // if(box_conveyor_state == BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE) {
   //   loginfo("start_box_conveyor in IDLE --> advancing box");
   //   box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE;
@@ -206,6 +243,7 @@ bool move_box_conveyor = (read_distance() > 50) && !box_conveyor_beam_broken;
      case BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE:
       if(box_conveyor_beam_broken() == true) {
         unbroken_box_beam_start = current_time;
+        box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE;
       } else {
         if (current_time -  unbroken_box_beam_start > unbroken_box_beam_threshold) {
           stop_box_conveyor();
@@ -233,8 +271,17 @@ bool move_box_conveyor = (read_distance() > 50) && !box_conveyor_beam_broken;
    return box_conveyor_state == BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
  }
 
+
+// uint8_t read_distance() {
+//   return -1;
+// }
+
  uint8_t read_distance() {
     uint8_t range = vl6180x.readRange();
+    nh.loginfo("Distance reading:");
+    if (range == -1) {
+      nh.logerror("Failed to read distance.");
+    }
     uint8_t status = vl6180x.readRangeStatus();
 
    if (status == VL6180X_ERROR_NONE) return range;
@@ -288,16 +335,20 @@ bool move_box_conveyor = (read_distance() > 50) && !box_conveyor_beam_broken;
 
 // ----- loop/setup functions -----
 void setup() {
+  nh.initNode();
+  nh.getHardware()->setBaud(57600);
+  nh.loginfo("Initializing ROS node");
+
   init_std_node();
 
   Wire.begin(BOX_CONVEYOR_RANGEFINDER_PIN_SDA, BOX_CONVEYOR_RANGEFINDER_PIN_SCL);
   vl6180x.begin();
 
-  outtake_module = init_module("outtake",
-    start_outtake, 
-    verify_outtake_complete, 
-    stop_outtake,
-    calibrate_outtake);
+  // outtake_module = init_module("outtake",
+  //   start_outtake, 
+  //   verify_outtake_complete, 
+  //   stop_outtake,
+  //   calibrate_outtake);
 
   // label_tamper_module = init_module("label_tamper",
   //   start_tamper, 
@@ -305,16 +356,16 @@ void setup() {
   //   stop_tamper,
   //   calibrate_tamper);
 
-  box_conveyor_module = init_module("box_conveyor",
+  MODULE* box_conveyor_module = init_module("box_conveyor",
     start_box_conveyor, 
     verify_box_conveyor_complete, 
     stop_box_conveyor,
     calibrate_box_conveyor);
   
   // outtake pins 
-  pinMode(OUTTAKE_BEAM_BREAK_PIN, INPUT_PULLUP) ;
-  pinMode(OUTTAKE_SPEED_PIN,OUTPUT) ;
-  pinMode(OUTTAKE_INVERT_PIN, OUTPUT) ;
+  // pinMode(OUTTAKE_BEAM_BREAK_PIN, INPUT_PULLUP) ;
+  // pinMode(OUTTAKE_SPEED_PIN,OUTPUT) ;
+  // pinMode(OUTTAKE_INVERT_PIN, OUTPUT) ;
 
   // label tamper pins
   // pinMode(TAMPER_NEAR_SWITCH_PIN, INPUT_PULLUP) ;
@@ -323,31 +374,34 @@ void setup() {
   // pinMode(TAMPER_INVERT_PIN, OUTPUT) ;
 
   // box conveyor pins
-  pinMode(BOX_CONVEYOR_BEAM_BREAK_PIN, INPUT_PULLUP) ;
-  pinMode(BOX_CONVEYOR_SPEED_PIN,OUTPUT) ;
-  pinMode(BOX_CONVEYOR_INVERT_PIN, OUTPUT) ;
+  // pinMode(BOX_CONVEYOR_BEAM_BREAK_PIN, INPUT_PULLUP) ;
+  // pinMode(BOX_CONVEYOR_SPEED_PIN,OUTPUT) ;
+  // pinMode(BOX_CONVEYOR_INVERT_PIN, OUTPUT) ;
 
-  if (! vl.begin()) {
-    logerr("*** Failed to find VL6180X (Box Conveyor Rangefinder) sensor");
-  } else loginfo("VL6180X (Box Conveyor Rangefinder) Sensor found!");
+  // if (! vl.begin()) {
+  //   logerr("*** Failed to find VL6180X (Box Conveyor Rangefinder) sensor");
+  // } else loginfo("VL6180X (Box Conveyor Rangefinder) Sensor found!");
 
   loginfo("setup() Complete");
 }
 
 
+
 void loop() {
-  // periodic_status();
-  // nh.spinOnce();
+  periodic_status();
+  nh.spinOnce();
   // check_outtake();
   // check_tamper();
   check_box_conveyor();
+  loginfo("System is running");
+  delay(1000);
 
   // ----- testing ----- 
-  if (verify_box_conveyor_complete()) {
-    loginfo("debugging test reset");
-    delay(5000);
-    start_box_conveyor();
-  }
+  // if (verify_box_conveyor_complete()) {
+  //   loginfo("debugging test reset");
+  //   delay(5000);
+  //   start_box_conveyor();
+  // }
   // uint8_t distance = read_distance();
 //   bool beam_break_block = box_conveyor_beam_broken();
 
