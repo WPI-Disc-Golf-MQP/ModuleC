@@ -253,7 +253,7 @@ bool move_box_conveyor = (read_distance() > 50) && !box_conveyor_beam_broken;
 
        break;
      case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE:
-       if (box_conveyor_beam_broken() == true) {
+       if (box_conveyor_beam_broken() == false) {
          start_box_conveyor();
          box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN;
          unbroken_box_beam_start = current_time;
