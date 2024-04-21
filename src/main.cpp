@@ -48,11 +48,12 @@ bool outtake_beam_broken() {
     loginfo("Outtake beam break changed state to: "+String(digitalRead(OUTTAKE_BEAM_BREAK_PIN)));
     val = digitalRead(OUTTAKE_BEAM_BREAK_PIN);
   }
+  return true;
 }
 
 void start_outtake() {
-  //outtake_state = OUTTAKE_STATE
-  loginfo("start outtake");
+  // outtake_state = OUTTAKE_STATE
+  // loginfo("start outtake");
   if (true) {
     outtake_state = OUTTAKE_STATE::OUTTAKE_SEND;
     moved_to_OUTTAKE_RELEASE_time = millis();
@@ -209,6 +210,7 @@ bool move_box_conveyor = (read_distance() > 50) && !box_conveyor_beam_broken;
  void start_box_conveyor() {
   nh.loginfo("Box conveyor is starting");
     box_conveyor_move_forward();
+ }
 
 
   // if(box_conveyor_state == BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE) {
@@ -222,7 +224,6 @@ bool move_box_conveyor = (read_distance() > 50) && !box_conveyor_beam_broken;
   //     box_conveyor_move_backward;
   //     }
   //   }
- }
 
  void stop_box_conveyor() {
    analogWrite(BOX_CONVEYOR_SPEED_PIN, 0); // stop
@@ -264,7 +265,7 @@ bool move_box_conveyor = (read_distance() > 50) && !box_conveyor_beam_broken;
          stop_box_conveyor();
          box_conveyor_state = BOX_CONVEYOR_IDLE;
        }
-   }
+  }
  }
 
  bool verify_box_conveyor_complete() {
@@ -272,54 +273,55 @@ bool move_box_conveyor = (read_distance() > 50) && !box_conveyor_beam_broken;
  }
 
 
-// uint8_t read_distance() {
-//   return -1;
-// }
 
- uint8_t read_distance() {
-    uint8_t range = vl6180x.readRange();
-    nh.loginfo("Distance reading:");
-    if (range == -1) {
-      nh.logerror("Failed to read distance.");
-    }
-    uint8_t status = vl6180x.readRangeStatus();
+uint8_t read_distance() {
+  return -1;
+}
 
-   if (status == VL6180X_ERROR_NONE) return range;
+//  uint8_t read_distance() { //This is the requesting topics error
+//     uint8_t range = vl6180x.readRange();
+//     nh.loginfo("Distance reading:");
+//     if (range == -1) {
+//       nh.logerror("Failed to read distance.");
+//     }
+//     uint8_t status = vl6180x.readRangeStatus();
+
+//    if (status == VL6180X_ERROR_NONE) return range;
   
-   // Some error occurred, print it out!
-   Serial.print("Error: ");
+//   //  Some error occurred, print it out!
+//    Serial.print("Error: ");
   
-   if  ((status >= VL6180X_ERROR_SYSERR_1) && (status <= VL6180X_ERROR_SYSERR_5)) {
-     logerr("*** VL6180X System error");
-   }
-   else if (status == VL6180X_ERROR_ECEFAIL) {
-     logerr("VL6180X: ECE failure");
-   }
-   else if (status == VL6180X_ERROR_NOCONVERGE) {
-     logerr("VL6180X: No convergence");
-   }
-   else if (status == VL6180X_ERROR_RANGEIGNORE) {
-     logerr("VL6180X: Ignoring range");
-   }
-   else if (status == VL6180X_ERROR_SNR) {
-     logerr("VL6180X: Signal/Noise ratio error");
-   }
-   else if (status == VL6180X_ERROR_RAWUFLOW) {
-     logerr("VL6180X: Raw reading underflow");
-   }
-   else if (status == VL6180X_ERROR_RAWOFLOW) {
-     logerr("VL6180X: Raw reading overflow");
-   }
-   else if (status == VL6180X_ERROR_RANGEUFLOW) {
-     logerr("VL6180X: Range reading underflow");
-   }
-   else if (status == VL6180X_ERROR_RANGEOFLOW) {
-     logerr("VL6180X: Range reading overflow");
-   } else {
-     logerr("VL6180X: Unknown error");
-   }
-   return -1;
- }
+//    if  ((status >= VL6180X_ERROR_SYSERR_1) && (status <= VL6180X_ERROR_SYSERR_5)) {
+//      logerr("*** VL6180X System error");
+//    }
+//    else if (status == VL6180X_ERROR_ECEFAIL) {
+//      logerr("VL6180X: ECE failure");
+//    }
+//    else if (status == VL6180X_ERROR_NOCONVERGE) {
+//      logerr("VL6180X: No convergence");
+//    }
+//    else if (status == VL6180X_ERROR_RANGEIGNORE) {
+//      logerr("VL6180X: Ignoring range");
+//    }
+//    else if (status == VL6180X_ERROR_SNR) {
+//      logerr("VL6180X: Signal/Noise ratio error");
+//    }
+//    else if (status == VL6180X_ERROR_RAWUFLOW) {
+//      logerr("VL6180X: Raw reading underflow");
+//    }
+//    else if (status == VL6180X_ERROR_RAWOFLOW) {
+//      logerr("VL6180X: Raw reading overflow");
+//    }
+//    else if (status == VL6180X_ERROR_RANGEUFLOW) {
+//      logerr("VL6180X: Range reading underflow");
+//    }
+//    else if (status == VL6180X_ERROR_RANGEOFLOW) {
+//      logerr("VL6180X: Range reading overflow");
+//    } else {
+//      logerr("VL6180X: Unknown error");
+//    }
+//    return -1;
+//  }
 
 // void check_box_conveyor() {
 //   switch (box_conveyor_state){
@@ -344,11 +346,11 @@ void setup() {
   Wire.begin(BOX_CONVEYOR_RANGEFINDER_PIN_SDA, BOX_CONVEYOR_RANGEFINDER_PIN_SCL);
   vl6180x.begin();
 
-  // outtake_module = init_module("outtake",
-  //   start_outtake, 
-  //   verify_outtake_complete, 
-  //   stop_outtake,
-  //   calibrate_outtake);
+  MODULE* outtake_module = init_module("outtake",
+    start_outtake, 
+    verify_outtake_complete, 
+    stop_outtake,
+    calibrate_outtake);
 
   // label_tamper_module = init_module("label_tamper",
   //   start_tamper, 
@@ -361,11 +363,12 @@ void setup() {
     verify_box_conveyor_complete, 
     stop_box_conveyor,
     calibrate_box_conveyor);
+    
   
   // outtake pins 
-  // pinMode(OUTTAKE_BEAM_BREAK_PIN, INPUT_PULLUP) ;
-  // pinMode(OUTTAKE_SPEED_PIN,OUTPUT) ;
-  // pinMode(OUTTAKE_INVERT_PIN, OUTPUT) ;
+  pinMode(OUTTAKE_BEAM_BREAK_PIN, INPUT_PULLUP) ;
+  pinMode(OUTTAKE_SPEED_PIN,OUTPUT) ;
+  pinMode(OUTTAKE_INVERT_PIN, OUTPUT) ;
 
   // label tamper pins
   // pinMode(TAMPER_NEAR_SWITCH_PIN, INPUT_PULLUP) ;
@@ -374,9 +377,9 @@ void setup() {
   // pinMode(TAMPER_INVERT_PIN, OUTPUT) ;
 
   // box conveyor pins
-  // pinMode(BOX_CONVEYOR_BEAM_BREAK_PIN, INPUT_PULLUP) ;
-  // pinMode(BOX_CONVEYOR_SPEED_PIN,OUTPUT) ;
-  // pinMode(BOX_CONVEYOR_INVERT_PIN, OUTPUT) ;
+  pinMode(BOX_CONVEYOR_BEAM_BREAK_PIN, INPUT_PULLUP) ;
+  pinMode(BOX_CONVEYOR_SPEED_PIN,OUTPUT) ;
+  pinMode(BOX_CONVEYOR_INVERT_PIN, OUTPUT) ;
 
   // if (! vl.begin()) {
   //   logerr("*** Failed to find VL6180X (Box Conveyor Rangefinder) sensor");
@@ -393,8 +396,9 @@ void loop() {
   // check_outtake();
   // check_tamper();
   check_box_conveyor();
-  loginfo("System is running");
+  // loginfo("System is running");
   delay(1000);
+}
 
   // ----- testing ----- 
   // if (verify_box_conveyor_complete()) {
@@ -432,4 +436,3 @@ void loop() {
 //   }
 
 //   delay(100);
- }
