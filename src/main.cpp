@@ -11,101 +11,160 @@
 #include "Adafruit_VL6180X.h"
 Adafruit_VL6180X vl = Adafruit_VL6180X();
 
-// ----- OUTTAKE -----
 
-MODULE* outtake_module;
-int OUTTAKE_BEAM_BREAK_PIN = D2; 
-int OUTTAKE_SPEED_PIN = A1;  
-int OUTTAKE_INVERT_PIN = D10;  
+// ----- CHUTE -----
+MODULE* chute_module;
+int CHUTE_BEAM_BREAK_PIN = D2;
+int CHUTE_ROLLER_SPEED_PIN = ;
+int CHUTE_ROLLER_INVERT_PIN = ;
 
-enum OUTTAKE_STATE {
-    OUTTAKE_IDLE = 0,
-    OUTTAKE_SEND = 1,
-    OUTTAKE_RECIEVE = 2, 
-    };
-OUTTAKE_STATE outtake_state = OUTTAKE_STATE::OUTTAKE_IDLE; 
+enum CHUTE_STATE {
+  CHUTE_IDLE = 0,           // Idle
+  CHUTE_RECIEVE = 1,        // Checks if disc is in the chute
+  CHUTE_SEND = 2            // Moves disc through the chute into the box
+};
+
+CHUTE_STATE chute_state = CHUTE_STATE::CHUTE_IDLE; 
 
 bool is_disc_present = false;
 long moved_to_OUTTAKE_RELEASE_time = millis();
 bool deposited_disc = false;
 
-void outtake_move_forward(int speed = 230) {
-  digitalWrite(OUTTAKE_INVERT_PIN, LOW);
-  analogWrite(OUTTAKE_SPEED_PIN, speed); // start
+// Moves the chute motor forward
+void chute_move_forward(int speed = 230) {
+  digitalWrite(CHUTE_ROLLER_INVERT_PIN, LOW);
+  analogWrite(CHUTE_ROLLER_SPEED_PIN, speed); // start
   loginfo("outtake moving forward");
 }
 
-// void outtake_move_backward(int speed = 230) {
-//   digitalWrite(OUTTAKE_INVERT_PIN, HIGH);
-//   analogWrite(OUTTAKE_SPEED_PIN, speed); // start
-//   loginfo("outtake moving backward");
-// }
+// Moves the chute motor backward
+void chute_move_backward(int speed = 230) {
+  digitalWrite(CHUTE_ROLLER_INVERT_PIN, HIGH);
+  analogWrite(CHUTE_ROLLER_SPEED_PIN, speed); // start
+  loginfo("outtake moving backward");
+}
 
 bool val = 0;
-
-bool outtake_beam_broken() {
-  if (digitalRead(OUTTAKE_BEAM_BREAK_PIN) != val) {
-    loginfo("Outtake beam break changed state to: "+String(digitalRead(OUTTAKE_BEAM_BREAK_PIN)));
-    val = digitalRead(OUTTAKE_BEAM_BREAK_PIN);
+// Checks if the chute beam is broken
+bool chute_beam_broken() {
+  if (digitalRead(CHUTE_BEAM_BREAK_PIN) != val) {
+    loginfo("Chute beam break changed state to: "+String(digitalRead(CHUTE_BEAM_BREAK_PIN)));
+    val = digitalRead(CHUTE_BEAM_BREAK_PIN);
   }
   return true;
 }
 
-void start_outtake() {
+// Starts the outtake
+void start_chute() {
   // outtake_state = OUTTAKE_STATE
   // loginfo("start outtake");
   if (true) {
-    outtake_state = OUTTAKE_STATE::OUTTAKE_SEND;
+    outtake_state = CHUTE_STATE::CHUTE_SEND;
     moved_to_OUTTAKE_RELEASE_time = millis();
-    outtake_move_forward();
+    chute_move_forward();
   } else {
-    outtake_state = OUTTAKE_STATE::OUTTAKE_RECIEVE;
+    chute_state = CHUTE_STATE::CHUTE_RECIEVE;
   }
   
 }
 
-void stop_outtake() {
-  analogWrite(OUTTAKE_SPEED_PIN, 0); // stop
+// Stops the outtake
+void stop_chute() {
+  analogWrite(CHUTE_ROLLER_SPEED_PIN, 0); // stop
   if (outtake_state != OUTTAKE_STATE::OUTTAKE_IDLE) {
     loginfo("stop");
     outtake_state = OUTTAKE_STATE::OUTTAKE_IDLE;
   }
 }
 
-void calibrate_outtake() {
-  loginfo("calibrate outtake; TODO"); //TODO: Implement calibration
-}
-
-void check_outtake() {
-  switch (outtake_state){
-    case OUTTAKE_STATE::OUTTAKE_IDLE:
-      stop_outtake();
+// Chute switch case
+void check_chute() {
+  switch (chute_state){
+    case CHUTE_STATE::CHUTE_IDLE:
+      stop_chute();
       break;
-    case OUTTAKE_STATE::OUTTAKE_SEND:
-      if (moved_to_OUTTAKE_RELEASE_time+2000 < millis()) {
-        is_disc_present = false;
-        outtake_state = OUTTAKE_STATE::OUTTAKE_RECIEVE;
-        start_outtake();
-        outtake_move_forward();
+    case CHUTE_STATE::CHUTE_RECIEVE:
+      if(chute_beam_broken == true){
+        start_chute();
       }
-    case OUTTAKE_STATE::OUTTAKE_RECIEVE:
-      if (outtake_beam_broken()) {
-        is_disc_present = true;
-        outtake_state = OUTTAKE_STATE::OUTTAKE_IDLE;
-        outtake_module->publish_status(MODULE_STATUS::COMPLETE);
-      };
       break;
-    default:
-      logwarn("Invalid outtake state");
+    case CHUTE_STATE::CHUTE_SEND:
+      if(chute_beam_broken == false){
+        stop_chute();
+      }
       break;
   }
-  outtake_module->publish_state((int) outtake_state);
-  outtake_beam_broken();
 }
 
-bool verify_outtake_complete() {
-  return outtake_state == OUTTAKE_STATE::OUTTAKE_IDLE;
+// Checks if the chute is idle
+bool verify_chute_complete() {
+  return chute_state == CHUTE_STATE::CHUTE_IDLE;
 }
+
+
+// ----- BACKING -----
+MODULE* backing_module;
+int BACKING_SPEED_PIN = ;
+int BACKING_INVERT_PIN = ;
+
+enum BACKING_STATE {
+  BACKING_IDLE = 0,       // Idle
+  BACKING_RAISE = 1,      // Raising the backing
+  BACKING_LOWER = 2       // Lowering the backing
+};
+
+BACKING_STATE backing_state = BACKING_STATE::BACKING_IDLE;
+
+// Moves the backing motor forward
+void backing_move_forward(int speed = 230) {
+  digitalWrite(BACKING_INVERT_PIN, LOW);
+  analogWrite(BACKING_SPEED_PIN, speed);
+  loginfo("backing moving down");
+}
+
+// Moves the backing motor backward
+void backing_move_backward(int speed = 230) {
+  backing_state = BACKING_STATE::BACKING_RAISE;
+  digitalWrite(BACKING_INVERT_PIN, HIGH);
+  analogWrite(BACKING_SPEED_PIN, speed);
+  loginfo("backing moving up");
+}
+
+// Starts the backing motor
+void start_backing(bool forward) {
+  moved_to_BACKING_RELEASE_time = millis();
+  if (forward) {
+    backing_move_forward();
+  }else{
+    backing_move_backward();
+  }
+}
+
+// Stops the backing motor
+void stop_backing() {
+  analogWrite(BACKING_SPEED_PIN, 0);
+}
+
+// Backing switch case
+void check_backing() {
+  switch (backing_state){
+    case BACKING_STATE::BACKING_IDLE:
+      stop_backing();
+      break;
+    case BACKING_STATE::BACKING_RAISE:
+      start_backing(false);
+      break;
+    case BACKING_STATE::BACKING_LOWER:
+      start_backing(true);
+      break;
+  }
+}
+
+// Verifies if the backing is complete
+bool verify_backing_complete() {
+  return backing_state == BACKING_STATE::BACKING_IDLE;
+}
+
 
 // ----- LABEL TAMPER -----
 
@@ -165,48 +224,62 @@ bool verify_outtake_complete() {
 //   return label_tamper_state == LABEL_TAMPER_STATE::LABEL_TAMPER_IDLE;
 // }
 
+
 // ----- BOX_CONVEYOR -----
+ MODULE* box_conveyor_module;
+ int FRONT_BEAM_BREAK_PIN = ;
+ int BACK_BEAM_BREAK_PIN = ;
+ int BOX_CONVEYOR_SPEED_PIN = A0;  
+ int BOX_CONVEYOR_INVERT_PIN = D13;
 
  enum BOX_CONVEYOR_STATE {
    BOX_CONVEYOR_IDLE = 0, 
    BOX_CONVEYOR_ALIGN = 1,
    BOX_CONVEYOR_ADVANCE = 2,
-  BOX_CONVEYOR_ERROR = 3,
+   BOX_CONVEYOR_ERROR = 3,
  };
 
  BOX_CONVEYOR_STATE box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE; 
 
  Adafruit_VL6180X vl6180x;
 
- int BOX_CONVEYOR_BEAM_BREAK_PIN = D3; 
- int BOX_CONVEYOR_RANGEFINDER_PIN_SCL = D5; 
- int BOX_CONVEYOR_RANGEFINDER_PIN_SDA = D4;
- int BOX_CONVEYOR_SPEED_PIN = A0;  
- int BOX_CONVEYOR_INVERT_PIN = D13;  
-
- MODULE* box_conveyor_module;
-
  unsigned long unbroken_box_beam_start = 0;
  const unsigned long unbroken_box_beam_threshold = 6000;
  uint8_t read_distance();
 
+ // Moves box conveyor forward
  void box_conveyor_move_forward(int speed = 230) {
    digitalWrite(BOX_CONVEYOR_INVERT_PIN, LOW);
    analogWrite(BOX_CONVEYOR_SPEED_PIN, speed); // start
    loginfo("box_conveyor moving forward");
  }
 
+ // Moves box conveyor backward
  void box_conveyor_move_backward(int speed = 230) {
    digitalWrite(BOX_CONVEYOR_INVERT_PIN, HIGH);
    analogWrite(BOX_CONVEYOR_SPEED_PIN, speed); // start
    loginfo("box_conveyor moving backward");
  }
 
- bool box_conveyor_beam_broken() {
-   return (digitalRead(BOX_CONVEYOR_BEAM_BREAK_PIN) == 0);
- }
+ bool front_val = 0;
+// Checks if the front beam is broken
+bool front_beam_broken() {
+  if (digitalRead(FRONT_BEAM_BREAK_PIN) !=front_val) {
+    loginfo("Front beam break changed state to: "+String(digitalRead(FRONT_BEAM_BREAK_PIN)));
+    front_val = digitalRead(FRONT_BEAM_BREAK_PIN);
+  }
+}
 
-bool move_box_conveyor = (read_distance() > 50) && !box_conveyor_beam_broken;
+bool back_val = 0;
+// Checks if the back beam is broken
+bool back_beam_broken() {
+  if (digitalRead(BACK_BEAM_BREAK_PIN) !=back_val) {
+    loginfo("Back beam break changed state to: "+String(digitalRead(BACK_BEAM_BREAK_PIN)));
+    back_val = digitalRead(BACK_BEAM_BREAK_PIN);
+  }
+}
+
+ //bool move_box_conveyor = (read_distance() > 50) && !box_conveyor_beam_broken;
  void start_box_conveyor() {
   nh.loginfo("Box conveyor is starting");
     box_conveyor_move_forward();
@@ -343,14 +416,18 @@ void setup() {
 
   init_std_node();
 
-  Wire.begin(BOX_CONVEYOR_RANGEFINDER_PIN_SDA, BOX_CONVEYOR_RANGEFINDER_PIN_SCL);
+  Wire.begin(BOX_CONVEYOR_RANGEFINDER_PIN_SDA, BOX_CONVEYOR_RANGEFINDER_PIN_SCL); //Obsolete?
   vl6180x.begin();
 
-  MODULE* outtake_module = init_module("outtake",
-    start_outtake, 
-    verify_outtake_complete, 
-    stop_outtake,
-    calibrate_outtake);
+  MODULE* chute_module = init_module("chute",
+    start_chute, 
+    verify_chute_complete, 
+    stop_chute);
+
+  MODULE* backing_module = init_module("backing",
+    start_backing,
+    verify_backing_complete,
+    stop_backing);
 
   // label_tamper_module = init_module("label_tamper",
   //   start_tamper, 
@@ -363,12 +440,15 @@ void setup() {
     verify_box_conveyor_complete, 
     stop_box_conveyor,
     calibrate_box_conveyor);
-    
   
-  // outtake pins 
-  pinMode(OUTTAKE_BEAM_BREAK_PIN, INPUT_PULLUP) ;
-  pinMode(OUTTAKE_SPEED_PIN,OUTPUT) ;
-  pinMode(OUTTAKE_INVERT_PIN, OUTPUT) ;
+  // chute pins 
+  pinMode(CHUTE_BEAM_BREAK_PIN, INPUT_PULLUP);
+  pinMode(CHUTE_SPEED_PIN, OUTPUT);
+  pinMode(CHUTE_INVERT_PIN, OUTPUT);
+
+  // backing pins
+  pinMode(BACKING_SPEED_PIN, OUTPUT);
+  pinMode(BACKING_INVERT_PIN, OUTPUT);
 
   // label tamper pins
   // pinMode(TAMPER_NEAR_SWITCH_PIN, INPUT_PULLUP) ;
@@ -377,9 +457,10 @@ void setup() {
   // pinMode(TAMPER_INVERT_PIN, OUTPUT) ;
 
   // box conveyor pins
-  pinMode(BOX_CONVEYOR_BEAM_BREAK_PIN, INPUT_PULLUP) ;
-  pinMode(BOX_CONVEYOR_SPEED_PIN,OUTPUT) ;
-  pinMode(BOX_CONVEYOR_INVERT_PIN, OUTPUT) ;
+  pinMode(FRONT_BEAM_BREAK_PIN, INPUT_PULLUP);
+  pinMode(BACK_BEAM_BREAK_PIN, INPUT_PULLUP);
+  pinMode(BOX_CONVEYOR_SPEED_PIN,OUTPUT);
+  pinMode(BOX_CONVEYOR_INVERT_PIN, OUTPUT);
 
   // if (! vl.begin()) {
   //   logerr("*** Failed to find VL6180X (Box Conveyor Rangefinder) sensor");
@@ -400,13 +481,13 @@ void loop() {
   delay(1000);
 }
 
-  // ----- testing ----- 
-  // if (verify_box_conveyor_complete()) {
-  //   loginfo("debugging test reset");
-  //   delay(5000);
-  //   start_box_conveyor();
-  // }
-  // uint8_t distance = read_distance();
+// ----- testing ----- 
+// if (verify_box_conveyor_complete()) {
+//   loginfo("debugging test reset");
+//   delay(5000);
+//   start_box_conveyor();
+// }
+// uint8_t distance = read_distance();
 //   bool beam_break_block = box_conveyor_beam_broken();
 
 //   int distance_max = 50; //Placeholder for now
@@ -424,7 +505,7 @@ void loop() {
 //         if ((millis() - unbroken_box_beam_start) >= unbroken_box_beam_threshold) {
 //           Serial.println("Add boxes");
 
-//           stop_outtake();
+//           stop_chute();
 //           stop_tamper();
 //           stop_box_conveyor();
 //         }
