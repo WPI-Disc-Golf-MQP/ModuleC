@@ -15,8 +15,8 @@ Adafruit_VL6180X vl = Adafruit_VL6180X();
 // ----- CHUTE -----
 MODULE* chute_module;
 int CHUTE_BEAM_BREAK_PIN = D2;
-int CHUTE_ROLLER_SPEED_PIN = ;
-int CHUTE_ROLLER_INVERT_PIN = ;
+int CHUTE_SPEED_PIN = A0;
+int CHUTE_INVERT_PIN = D13;
 
 enum CHUTE_STATE {
   CHUTE_IDLE = 0,           // Idle
@@ -27,20 +27,25 @@ enum CHUTE_STATE {
 CHUTE_STATE chute_state = CHUTE_STATE::CHUTE_IDLE; 
 
 bool is_disc_present = false;
-long moved_to_OUTTAKE_RELEASE_time = millis();
 bool deposited_disc = false;
+bool recieve_start_msg = true;
+bool recieve_stop_msg = false;
+long moved_to_CHUTE_RELEASE_time = millis();
+unsigned long unbroken_chute_beam_start = 0;
+const unsigned long unbroken_chute_beam_lower_threshold = 3000;
+const unsigned long unbroken_chute_beam_upper_threshold = 6000;
 
 // Moves the chute motor forward
 void chute_move_forward(int speed = 230) {
-  digitalWrite(CHUTE_ROLLER_INVERT_PIN, LOW);
-  analogWrite(CHUTE_ROLLER_SPEED_PIN, speed); // start
+  digitalWrite(CHUTE_INVERT_PIN, LOW);
+  analogWrite(CHUTE_SPEED_PIN, speed); // start
   loginfo("outtake moving forward");
 }
 
 // Moves the chute motor backward
 void chute_move_backward(int speed = 230) {
-  digitalWrite(CHUTE_ROLLER_INVERT_PIN, HIGH);
-  analogWrite(CHUTE_ROLLER_SPEED_PIN, speed); // start
+  digitalWrite(CHUTE_INVERT_PIN, HIGH);
+  analogWrite(CHUTE_SPEED_PIN, speed); // start
   loginfo("outtake moving backward");
 }
 
@@ -51,7 +56,7 @@ bool chute_beam_broken() {
     loginfo("Chute beam break changed state to: "+String(digitalRead(CHUTE_BEAM_BREAK_PIN)));
     val = digitalRead(CHUTE_BEAM_BREAK_PIN);
   }
-  return true;
+  return (digitalRead(CHUTE_BEAM_BREAK_PIN) == 0);
 }
 
 // Starts the outtake
@@ -59,8 +64,8 @@ void start_chute() {
   // outtake_state = OUTTAKE_STATE
   // loginfo("start outtake");
   if (true) {
-    outtake_state = CHUTE_STATE::CHUTE_SEND;
-    moved_to_OUTTAKE_RELEASE_time = millis();
+    //chute_state = CHUTE_STATE::CHUTE_SEND;
+    moved_to_CHUTE_RELEASE_time = millis();
     chute_move_forward();
   } else {
     chute_state = CHUTE_STATE::CHUTE_RECIEVE;
@@ -70,26 +75,39 @@ void start_chute() {
 
 // Stops the outtake
 void stop_chute() {
-  analogWrite(CHUTE_ROLLER_SPEED_PIN, 0); // stop
-  if (outtake_state != OUTTAKE_STATE::OUTTAKE_IDLE) {
+  analogWrite(CHUTE_SPEED_PIN, 0); // stop
+  if (chute_state != CHUTE_STATE::CHUTE_IDLE) {
     loginfo("stop");
-    outtake_state = OUTTAKE_STATE::OUTTAKE_IDLE;
+    chute_state = CHUTE_STATE::CHUTE_IDLE;
   }
 }
 
+// Calibrates the chute
+void calibrate_chute() {
+   loginfo("calibrate chute; TODO"); //TODO: Implement calibration
+ }
+
 // Chute switch case
 void check_chute() {
+  unsigned long chute_current_time = millis();
   switch (chute_state){
     case CHUTE_STATE::CHUTE_IDLE:
-      stop_chute();
+      if(recieve_start_msg){
+        //start_chute();
+        chute_state = CHUTE_STATE::CHUTE_RECIEVE;
+      } else if (recieve_stop_msg) {
+        stop_chute();
+      }
       break;
     case CHUTE_STATE::CHUTE_RECIEVE:
-      if(chute_beam_broken == true){
+      if(chute_beam_broken){
+        chute_state = CHUTE_STATE::CHUTE_SEND;
         start_chute();
       }
       break;
     case CHUTE_STATE::CHUTE_SEND:
       if(chute_beam_broken == false){
+        chute_state = CHUTE_STATE::CHUTE_RECIEVE;
         stop_chute();
       }
       break;
@@ -104,8 +122,8 @@ bool verify_chute_complete() {
 
 // ----- BACKING -----
 MODULE* backing_module;
-int BACKING_SPEED_PIN = ;
-int BACKING_INVERT_PIN = ;
+int BACKING_SPEED_PIN = A1;
+int BACKING_INVERT_PIN = D10;
 
 enum BACKING_STATE {
   BACKING_IDLE = 0,       // Idle
@@ -114,6 +132,9 @@ enum BACKING_STATE {
 };
 
 BACKING_STATE backing_state = BACKING_STATE::BACKING_IDLE;
+
+long moved_to_BACKING_RELEASE_time = millis();
+bool raise = false;
 
 // Moves the backing motor forward
 void backing_move_forward(int speed = 230) {
@@ -131,9 +152,9 @@ void backing_move_backward(int speed = 230) {
 }
 
 // Starts the backing motor
-void start_backing(bool forward) {
+void start_backing() {
   moved_to_BACKING_RELEASE_time = millis();
-  if (forward) {
+  if (raise) {
     backing_move_forward();
   }else{
     backing_move_backward();
@@ -145,6 +166,11 @@ void stop_backing() {
   analogWrite(BACKING_SPEED_PIN, 0);
 }
 
+// Calibrates the backing
+void calibrate_backing() {
+   loginfo("calibrate backing; TODO"); //TODO: Implement calibration
+ }
+
 // Backing switch case
 void check_backing() {
   switch (backing_state){
@@ -152,10 +178,12 @@ void check_backing() {
       stop_backing();
       break;
     case BACKING_STATE::BACKING_RAISE:
-      start_backing(false);
+      raise = false;
+      start_backing();
       break;
     case BACKING_STATE::BACKING_LOWER:
-      start_backing(true);
+      raise = true;
+      start_backing();
       break;
   }
 }
@@ -227,10 +255,10 @@ bool verify_backing_complete() {
 
 // ----- BOX_CONVEYOR -----
  MODULE* box_conveyor_module;
- int FRONT_BEAM_BREAK_PIN = ;
- int BACK_BEAM_BREAK_PIN = ;
- int BOX_CONVEYOR_SPEED_PIN = A0;  
- int BOX_CONVEYOR_INVERT_PIN = D13;
+ int FRONT_BEAM_BREAK_PIN = D3;
+ int BACK_BEAM_BREAK_PIN = D4;
+ int BOX_CONVEYOR_SPEED_PIN = A2;  
+ int BOX_CONVEYOR_INVERT_PIN = D9;
 
  enum BOX_CONVEYOR_STATE {
    BOX_CONVEYOR_IDLE = 0, 
@@ -261,13 +289,14 @@ bool verify_backing_complete() {
    loginfo("box_conveyor moving backward");
  }
 
- bool front_val = 0;
+bool front_val = 0;
 // Checks if the front beam is broken
 bool front_beam_broken() {
   if (digitalRead(FRONT_BEAM_BREAK_PIN) !=front_val) {
     loginfo("Front beam break changed state to: "+String(digitalRead(FRONT_BEAM_BREAK_PIN)));
     front_val = digitalRead(FRONT_BEAM_BREAK_PIN);
   }
+  return (digitalRead(FRONT_BEAM_BREAK_PIN) == 0);
 }
 
 bool back_val = 0;
@@ -277,6 +306,7 @@ bool back_beam_broken() {
     loginfo("Back beam break changed state to: "+String(digitalRead(BACK_BEAM_BREAK_PIN)));
     back_val = digitalRead(BACK_BEAM_BREAK_PIN);
   }
+  return (digitalRead(BACK_BEAM_BREAK_PIN) == 0);
 }
 
  //bool move_box_conveyor = (read_distance() > 50) && !box_conveyor_beam_broken;
@@ -315,19 +345,18 @@ bool back_beam_broken() {
 
   switch (box_conveyor_state) {
      case BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE:
-      if(box_conveyor_beam_broken() == true) {
+      if(back_beam_broken() == true) {
         unbroken_box_beam_start = current_time;
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE;
       } else {
-        if (current_time -  unbroken_box_beam_start > unbroken_box_beam_threshold) {
+        if (current_time - unbroken_box_beam_start > unbroken_box_beam_threshold) {
           stop_box_conveyor();
           logerr("No boxes detected for too long. Add more boxes.");
         }
       }
-
-       break;
+      break;
      case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE:
-       if (box_conveyor_beam_broken() == false) {
+       if (front_beam_broken() == false) {
          start_box_conveyor();
          box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN;
          unbroken_box_beam_start = current_time;
@@ -344,8 +373,6 @@ bool back_beam_broken() {
  bool verify_box_conveyor_complete() {
    return box_conveyor_state == BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
  }
-
-
 
 uint8_t read_distance() {
   return -1;
@@ -408,6 +435,8 @@ uint8_t read_distance() {
 //   box_conveyor_module->publish_state((int) box_conveyor_state);
 // }
 
+
+
 // ----- loop/setup functions -----
 void setup() {
   nh.initNode();
@@ -416,18 +445,20 @@ void setup() {
 
   init_std_node();
 
-  Wire.begin(BOX_CONVEYOR_RANGEFINDER_PIN_SDA, BOX_CONVEYOR_RANGEFINDER_PIN_SCL); //Obsolete?
+  // Wire.begin(BOX_CONVEYOR_RANGEFINDER_PIN_SDA, BOX_CONVEYOR_RANGEFINDER_PIN_SCL); //Obsolete?
   vl6180x.begin();
 
   MODULE* chute_module = init_module("chute",
     start_chute, 
     verify_chute_complete, 
-    stop_chute);
+    stop_chute,
+    calibrate_chute);
 
   MODULE* backing_module = init_module("backing",
     start_backing,
     verify_backing_complete,
-    stop_backing);
+    stop_backing,
+    calibrate_chute);
 
   // label_tamper_module = init_module("label_tamper",
   //   start_tamper, 
@@ -469,14 +500,13 @@ void setup() {
   loginfo("setup() Complete");
 }
 
-
-
 void loop() {
   periodic_status();
   nh.spinOnce();
-  // check_outtake();
+  check_chute();
+  // check_backing();
   // check_tamper();
-  check_box_conveyor();
+  // check_box_conveyor();
   // loginfo("System is running");
   delay(1000);
 }
