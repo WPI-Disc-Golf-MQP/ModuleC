@@ -106,7 +106,7 @@ void check_chute() {
       }
       break;
     case CHUTE_STATE::CHUTE_SEND:
-      if(chute_beam_broken == false){
+      if(chute_beam_broken() == false){
         chute_state = CHUTE_STATE::CHUTE_RECIEVE;
         stop_chute();
       }
