@@ -11,12 +11,15 @@
 #include "Adafruit_VL6180X.h"
 Adafruit_VL6180X vl = Adafruit_VL6180X();
 
-
 // ----- CHUTE -----
 MODULE* chute_module;
-int CHUTE_BEAM_BREAK_PIN = D2;
-int CHUTE_SPEED_PIN = A0;
-int CHUTE_INVERT_PIN = D13;
+int CHUTE_BEAM_BREAK_PIN = 2;
+int CHUTE_SPEED_PIN = 11;
+int CHUTE_INVERT_PIN = A0;
+// int CHUTE_SPEED_PIN = 9;  
+// int CHUTE_INVERT_PIN = 6;
+// int CHUTE_SPEED_PIN = 8;  
+// int CHUTE_INVERT_PIN = 5;
 
 enum CHUTE_STATE {
   CHUTE_IDLE = 0,           // Idle
@@ -28,25 +31,20 @@ CHUTE_STATE chute_state = CHUTE_STATE::CHUTE_IDLE;
 
 bool is_disc_present = false;
 bool deposited_disc = false;
-bool recieve_start_msg = true;
-bool recieve_stop_msg = false;
-long moved_to_CHUTE_RELEASE_time = millis();
-unsigned long unbroken_chute_beam_start = 0;
-const unsigned long unbroken_chute_beam_lower_threshold = 3000;
-const unsigned long unbroken_chute_beam_upper_threshold = 6000;
+bool recieve_chute_start_msg = false;
 
 // Moves the chute motor forward
 void chute_move_forward(int speed = 230) {
   digitalWrite(CHUTE_INVERT_PIN, LOW);
   analogWrite(CHUTE_SPEED_PIN, speed); // start
-  loginfo("outtake moving forward");
+  loginfo("chute moving forward");
 }
 
 // Moves the chute motor backward
 void chute_move_backward(int speed = 230) {
   digitalWrite(CHUTE_INVERT_PIN, HIGH);
   analogWrite(CHUTE_SPEED_PIN, speed); // start
-  loginfo("outtake moving backward");
+  loginfo("chute moving backward");
 }
 
 bool val = 0;
@@ -65,7 +63,6 @@ void start_chute() {
   // loginfo("start outtake");
   if (true) {
     //chute_state = CHUTE_STATE::CHUTE_SEND;
-    moved_to_CHUTE_RELEASE_time = millis();
     chute_move_forward();
   } else {
     chute_state = CHUTE_STATE::CHUTE_RECIEVE;
@@ -76,10 +73,11 @@ void start_chute() {
 // Stops the outtake
 void stop_chute() {
   analogWrite(CHUTE_SPEED_PIN, 0); // stop
-  if (chute_state != CHUTE_STATE::CHUTE_IDLE) {
-    loginfo("stop");
-    chute_state = CHUTE_STATE::CHUTE_IDLE;
-  }
+  loginfo("stop");
+  // if (chute_state != CHUTE_STATE::CHUTE_IDLE) {
+  //   loginfo("stop");
+  //   chute_state = CHUTE_STATE::CHUTE_IDLE;
+  // }
 }
 
 // Calibrates the chute
@@ -89,18 +87,13 @@ void calibrate_chute() {
 
 // Chute switch case
 void check_chute() {
-  unsigned long chute_current_time = millis();
   switch (chute_state){
     case CHUTE_STATE::CHUTE_IDLE:
-      if(recieve_start_msg){
-        //start_chute();
-        chute_state = CHUTE_STATE::CHUTE_RECIEVE;
-      } else if (recieve_stop_msg) {
-        stop_chute();
-      }
+      chute_state = CHUTE_STATE::CHUTE_RECIEVE;
       break;
     case CHUTE_STATE::CHUTE_RECIEVE:
-      if(chute_beam_broken){
+      deposited_disc = false;
+      if(chute_beam_broken()) {
         chute_state = CHUTE_STATE::CHUTE_SEND;
         start_chute();
       }
@@ -109,6 +102,7 @@ void check_chute() {
       if(chute_beam_broken() == false){
         chute_state = CHUTE_STATE::CHUTE_RECIEVE;
         stop_chute();
+        deposited_disc = true;
       }
       break;
   }
@@ -120,21 +114,27 @@ bool verify_chute_complete() {
 }
 
 
+
 // ----- BACKING -----
 MODULE* backing_module;
-int BACKING_SPEED_PIN = A1;
-int BACKING_INVERT_PIN = D10;
+int BACKING_SPEED_PIN = 8;
+int BACKING_INVERT_PIN = 5;
 
 enum BACKING_STATE {
   BACKING_IDLE = 0,       // Idle
-  BACKING_RAISE = 1,      // Raising the backing
-  BACKING_LOWER = 2       // Lowering the backing
+  BACKING_MOVE = 1
+  // BACKING_RAISE = 1,      // Raising the backing
+  // BACKING_LOWER = 2       // Lowering the backing
 };
 
 BACKING_STATE backing_state = BACKING_STATE::BACKING_IDLE;
 
-long moved_to_BACKING_RELEASE_time = millis();
+unsigned long backing_start_time = 0;
+const unsigned long backing_threshold = 2000;
+
 bool raise = false;
+bool prev_raise = raise;
+bool recieve_backing_start_msg = false;
 
 // Moves the backing motor forward
 void backing_move_forward(int speed = 230) {
@@ -145,7 +145,7 @@ void backing_move_forward(int speed = 230) {
 
 // Moves the backing motor backward
 void backing_move_backward(int speed = 230) {
-  backing_state = BACKING_STATE::BACKING_RAISE;
+  // backing_state = BACKING_STATE::BACKING_RAISE;
   digitalWrite(BACKING_INVERT_PIN, HIGH);
   analogWrite(BACKING_SPEED_PIN, speed);
   loginfo("backing moving up");
@@ -153,7 +153,7 @@ void backing_move_backward(int speed = 230) {
 
 // Starts the backing motor
 void start_backing() {
-  moved_to_BACKING_RELEASE_time = millis();
+  backing_start_time = millis();
   if (raise) {
     backing_move_forward();
   }else{
@@ -166,6 +166,15 @@ void stop_backing() {
   analogWrite(BACKING_SPEED_PIN, 0);
 }
 
+// Checks whether the backing is raised or lowered
+bool check_raise_status() {
+  if (prev_raise != raise){
+    prev_raise = raise;
+    return true;
+  }
+  return false;
+}
+
 // Calibrates the backing
 void calibrate_backing() {
    loginfo("calibrate backing; TODO"); //TODO: Implement calibration
@@ -173,17 +182,24 @@ void calibrate_backing() {
 
 // Backing switch case
 void check_backing() {
+  unsigned long backing_current_time = millis();
   switch (backing_state){
     case BACKING_STATE::BACKING_IDLE:
-      stop_backing();
+      if (check_raise_status()) {
+        backing_start_time = backing_current_time;
+        backing_state = BACKING_STATE::BACKING_MOVE;
+      } else {
+        stop_backing();
+      }
       break;
-    case BACKING_STATE::BACKING_RAISE:
-      raise = false;
-      start_backing();
-      break;
-    case BACKING_STATE::BACKING_LOWER:
-      raise = true;
-      start_backing();
+    case BACKING_STATE::BACKING_MOVE:
+      //raise = false;
+      if (backing_current_time - backing_start_time > backing_threshold) {
+        stop_backing();
+        backing_state = BACKING_STATE::BACKING_IDLE;
+      } else {
+        start_backing();
+      }
       break;
   }
 }
@@ -192,6 +208,7 @@ void check_backing() {
 bool verify_backing_complete() {
   return backing_state == BACKING_STATE::BACKING_IDLE;
 }
+
 
 
 // ----- LABEL TAMPER -----
@@ -254,36 +271,38 @@ bool verify_backing_complete() {
 
 
 // ----- BOX_CONVEYOR -----
- MODULE* box_conveyor_module;
- int FRONT_BEAM_BREAK_PIN = D3;
- int BACK_BEAM_BREAK_PIN = D4;
- int BOX_CONVEYOR_SPEED_PIN = A2;  
- int BOX_CONVEYOR_INVERT_PIN = D9;
+MODULE* box_conveyor_module;
+int FRONT_BEAM_BREAK_PIN = 3;
+int BACK_BEAM_BREAK_PIN = 4;
+int BOX_CONVEYOR_SPEED_PIN = 9;  
+int BOX_CONVEYOR_INVERT_PIN = 6;
 
- enum BOX_CONVEYOR_STATE {
-   BOX_CONVEYOR_IDLE = 0, 
-   BOX_CONVEYOR_ALIGN = 1,
-   BOX_CONVEYOR_ADVANCE = 2,
-   BOX_CONVEYOR_ERROR = 3,
- };
+enum BOX_CONVEYOR_STATE {
+  BOX_CONVEYOR_IDLE = 0, 
+  BOX_CONVEYOR_ALIGN = 1,
+  BOX_CONVEYOR_ADVANCE = 2,
+  BOX_CONVEYOR_ERROR = 3,
+};
 
- BOX_CONVEYOR_STATE box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE; 
+BOX_CONVEYOR_STATE box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE; 
 
- Adafruit_VL6180X vl6180x;
+Adafruit_VL6180X vl6180x;
 
- unsigned long unbroken_box_beam_start = 0;
- const unsigned long unbroken_box_beam_threshold = 6000;
- uint8_t read_distance();
+unsigned long unbroken_back_beam_start = 0;
+unsigned long unbroken_front_beam_start = 0;
+const unsigned long unbroken_box_beam_threshold = 6000;
+unsigned long box_move_start = 0;
+uint8_t read_distance();
 
- // Moves box conveyor forward
- void box_conveyor_move_forward(int speed = 230) {
+// Moves box conveyor forward
+void box_conveyor_move_forward(int speed = 230) {
    digitalWrite(BOX_CONVEYOR_INVERT_PIN, LOW);
    analogWrite(BOX_CONVEYOR_SPEED_PIN, speed); // start
    loginfo("box_conveyor moving forward");
  }
 
- // Moves box conveyor backward
- void box_conveyor_move_backward(int speed = 230) {
+// Moves box conveyor backward
+void box_conveyor_move_backward(int speed = 230) {
    digitalWrite(BOX_CONVEYOR_INVERT_PIN, HIGH);
    analogWrite(BOX_CONVEYOR_SPEED_PIN, speed); // start
    loginfo("box_conveyor moving backward");
@@ -309,12 +328,11 @@ bool back_beam_broken() {
   return (digitalRead(BACK_BEAM_BREAK_PIN) == 0);
 }
 
- //bool move_box_conveyor = (read_distance() > 50) && !box_conveyor_beam_broken;
- void start_box_conveyor() {
+//bool move_box_conveyor = (read_distance() > 50) && !box_conveyor_beam_broken;
+void start_box_conveyor() {
   nh.loginfo("Box conveyor is starting");
     box_conveyor_move_forward();
  }
-
 
   // if(box_conveyor_state == BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE) {
   //   loginfo("start_box_conveyor in IDLE --> advancing box");
@@ -328,7 +346,7 @@ bool back_beam_broken() {
   //     }
   //   }
 
- void stop_box_conveyor() {
+void stop_box_conveyor() {
    analogWrite(BOX_CONVEYOR_SPEED_PIN, 0); // stop
    if (box_conveyor_state != BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE) {
      loginfo("stop");
@@ -336,41 +354,56 @@ bool back_beam_broken() {
    }
  }
 
- void calibrate_box_conveyor() {
-   loginfo("calibrate box_conveyor; TODO"); //TODO: Implement calibration
- }
 
- void check_box_conveyor() {
+void calibrate_box_conveyor() {
+  loginfo("calibrate box_conveyor; TODO"); //TODO: Implement calibration
+}
+
+void check_box_conveyor() {
   unsigned long current_time = millis();
 
   switch (box_conveyor_state) {
-     case BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE:
-      if(back_beam_broken() == true) {
-        unbroken_box_beam_start = current_time;
+    case BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE:
+      if (verify_backing_complete() && deposited_disc) {
+        box_move_start = current_time;
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE;
+      } else if (front_beam_broken() && back_beam_broken() == false) {
+        stop_box_conveyor();
+        raise = true;
+        backing_state = BACKING_STATE::BACKING_MOVE;
       } else {
-        if (current_time - unbroken_box_beam_start > unbroken_box_beam_threshold) {
-          stop_box_conveyor();
-          logerr("No boxes detected for too long. Add more boxes.");
-        }
+        unbroken_back_beam_start = current_time;
+        box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN;
       }
       break;
-     case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE:
-       if (front_beam_broken() == false) {
-         start_box_conveyor();
-         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN;
-         unbroken_box_beam_start = current_time;
-       }
-       break;
-     case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN:
-       if (read_distance() > 50) {
-         stop_box_conveyor();
-         box_conveyor_state = BOX_CONVEYOR_IDLE;
-       }
+    case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE:
+      start_box_conveyor();
+      if (current_time - box_move_start > 1000) {
+        stop_box_conveyor();
+        box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
+      }
+      break;
+    case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN:
+      start_box_conveyor();
+      if (front_beam_broken()) {
+        stop_box_conveyor();
+        box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
+        raise = false;
+        backing_state = BACKING_STATE::BACKING_MOVE;
+      } else if (current_time - unbroken_back_beam_start > unbroken_box_beam_threshold) {
+        stop_box_conveyor();
+        box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ERROR;
+        logerr("No boxes detected for too long. Add more boxes.");
+      }
+    case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ERROR:
+      stop_box_conveyor();
+      if (back_beam_broken()){
+        box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN;
+      }
   }
  }
 
- bool verify_box_conveyor_complete() {
+bool verify_box_conveyor_complete() {
    return box_conveyor_state == BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
  }
 
@@ -490,7 +523,7 @@ void setup() {
   // box conveyor pins
   pinMode(FRONT_BEAM_BREAK_PIN, INPUT_PULLUP);
   pinMode(BACK_BEAM_BREAK_PIN, INPUT_PULLUP);
-  pinMode(BOX_CONVEYOR_SPEED_PIN,OUTPUT);
+  pinMode(BOX_CONVEYOR_SPEED_PIN, OUTPUT);
   pinMode(BOX_CONVEYOR_INVERT_PIN, OUTPUT);
 
   // if (! vl.begin()) {
@@ -504,9 +537,9 @@ void loop() {
   periodic_status();
   nh.spinOnce();
   check_chute();
-  // check_backing();
+  check_backing();
   // check_tamper();
-  // check_box_conveyor();
+  check_box_conveyor();
   // loginfo("System is running");
   delay(1000);
 }
