@@ -13,13 +13,10 @@ Adafruit_VL6180X vl = Adafruit_VL6180X();
 
 // ----- CHUTE -----
 MODULE* chute_module;
-int CHUTE_BEAM_BREAK_PIN = 2;
-int CHUTE_SPEED_PIN = 11;
-int CHUTE_INVERT_PIN = A0;
-// int CHUTE_SPEED_PIN = 9;  
-// int CHUTE_INVERT_PIN = 6;
-// int CHUTE_SPEED_PIN = 8;  
-// int CHUTE_INVERT_PIN = 5;
+int CHUTE_BEAM_BREAK_PIN = 2; //Verified 2/21
+int CHUTE_SPEED_PIN = A0; //Updated 2/21
+int CHUTE_INVERT_PIN = 5; //Updated 2/21
+
 
 enum CHUTE_STATE {
   CHUTE_IDLE = 0,           // Idle
@@ -117,8 +114,9 @@ bool verify_chute_complete() {
 
 // ----- BACKING -----
 MODULE* backing_module;
-int BACKING_SPEED_PIN = 8;
-int BACKING_INVERT_PIN = 5;
+int BACKING_SPEED_PIN = 8; //Updates 2/21
+int BACKING_INVERT_PIN = 7; //Updated 2/21
+
 
 enum BACKING_STATE {
   BACKING_IDLE = 0,       // Idle
@@ -272,10 +270,11 @@ bool verify_backing_complete() {
 
 // ----- BOX_CONVEYOR -----
 MODULE* box_conveyor_module;
-int FRONT_BEAM_BREAK_PIN = 3;
-int BACK_BEAM_BREAK_PIN = 4;
-int BOX_CONVEYOR_SPEED_PIN = 9;  
-int BOX_CONVEYOR_INVERT_PIN = 6;
+int FRONT_BEAM_BREAK_PIN = 4; //Updated 2/21
+int BACK_BEAM_BREAK_PIN = 3; //Updates 2/21
+int BOX_CONVEYOR_SPEED_PIN = 9; //Verified 2/21
+int BOX_CONVEYOR_INVERT_PIN = 6; //Verified 2/21
+
 
 enum BOX_CONVEYOR_STATE {
   BOX_CONVEYOR_IDLE = 0, 
