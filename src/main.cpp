@@ -17,7 +17,6 @@ int CHUTE_BEAM_BREAK_PIN = 2; //Verified 2/21
 int CHUTE_SPEED_PIN = A0; //Updated 2/21
 int CHUTE_INVERT_PIN = 5; //Updated 2/21
 
-
 enum CHUTE_STATE {
   CHUTE_IDLE = 0,           // Idle
   CHUTE_RECIEVE = 1,        // Checks if disc is in the chute
@@ -79,8 +78,8 @@ void stop_chute() {
 
 // Calibrates the chute
 void calibrate_chute() {
-   loginfo("calibrate chute; TODO"); //TODO: Implement calibration
- }
+  loginfo("calibrate chute; TODO"); //TODO: Implement calibration
+}
 
 // Chute switch case
 void check_chute() {
@@ -116,7 +115,6 @@ bool verify_chute_complete() {
 MODULE* backing_module;
 int BACKING_SPEED_PIN = 8; //Updates 2/21
 int BACKING_INVERT_PIN = 7; //Updated 2/21
-
 
 enum BACKING_STATE {
   BACKING_IDLE = 0,       // Idle
@@ -173,7 +171,11 @@ bool check_raise_status() {
 
 // Calibrates the backing
 void calibrate_backing() {
-   loginfo("calibrate backing; TODO"); //TODO: Implement calibration
+  loginfo("calibrate backing; TODO"); //TODO: Implement calibration
+  // possibly needs rangefinder to function
+  // while (rangefinder_dist > upper_threshold) {
+  //   backing_move_backward();
+  // }
  }
 
 // Backing switch case
@@ -272,7 +274,6 @@ int BACK_BEAM_BREAK_PIN = 3; //Updated 2/21
 int BOX_CONVEYOR_SPEED_PIN = 9; //Verified 2/21
 int BOX_CONVEYOR_INVERT_PIN = 6; //Verified 2/21
 
-
 enum BOX_CONVEYOR_STATE {
   BOX_CONVEYOR_IDLE = 0, 
   BOX_CONVEYOR_ALIGN = 1,
@@ -292,17 +293,17 @@ uint8_t read_distance();
 
 // Moves box conveyor forward
 void box_conveyor_move_forward(int speed = 230) {
-   digitalWrite(BOX_CONVEYOR_INVERT_PIN, LOW);
-   analogWrite(BOX_CONVEYOR_SPEED_PIN, speed); // start
-   loginfo("box_conveyor moving forward");
- }
+  digitalWrite(BOX_CONVEYOR_INVERT_PIN, LOW);
+  analogWrite(BOX_CONVEYOR_SPEED_PIN, speed); // start
+  loginfo("box_conveyor moving forward");
+}
 
 // Moves box conveyor backward
 void box_conveyor_move_backward(int speed = 230) {
-   digitalWrite(BOX_CONVEYOR_INVERT_PIN, HIGH);
-   analogWrite(BOX_CONVEYOR_SPEED_PIN, speed); // start
-   loginfo("box_conveyor moving backward");
- }
+  digitalWrite(BOX_CONVEYOR_INVERT_PIN, HIGH);
+  analogWrite(BOX_CONVEYOR_SPEED_PIN, speed); // start
+  loginfo("box_conveyor moving backward");
+}
 
 bool front_val = 0;
 // Checks if the front beam is broken
@@ -328,7 +329,7 @@ bool back_beam_broken() {
 void start_box_conveyor() {
   nh.loginfo("Box conveyor is starting");
     box_conveyor_move_forward();
- }
+}
 
   // if(box_conveyor_state == BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE) {
   //   loginfo("start_box_conveyor in IDLE --> advancing box");
@@ -343,16 +344,19 @@ void start_box_conveyor() {
   //   }
 
 void stop_box_conveyor() {
-   analogWrite(BOX_CONVEYOR_SPEED_PIN, 0); // stop
-   if (box_conveyor_state != BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE) {
-     loginfo("stop");
-     box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
-   }
- }
+  analogWrite(BOX_CONVEYOR_SPEED_PIN, 0); // stop
+  if (box_conveyor_state != BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE) {
+    loginfo("stop");
+    box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
+  }
+}
 
 
 void calibrate_box_conveyor() {
   loginfo("calibrate box_conveyor; TODO"); //TODO: Implement calibration
+  while (front_beam_broken() || back_beam_broken()) {
+    box_conveyor_move_backward();
+  }
 }
 
 void check_box_conveyor() {
@@ -374,7 +378,7 @@ void check_box_conveyor() {
       } else if (front_beam_broken() == true && back_beam_broken() == false) {
         stop_box_conveyor();
         raise = true;
-        loginfo("The box is full, please replace");
+        loginfo("The box is full. Please replace");
       }
       break;
 
@@ -409,7 +413,7 @@ void check_box_conveyor() {
 
 bool verify_box_conveyor_complete() {
    return box_conveyor_state == BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
- }
+}
 
 uint8_t read_distance() {
   return -1;
