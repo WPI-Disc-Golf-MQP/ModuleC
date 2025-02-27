@@ -121,17 +121,15 @@ int BACKING_INVERT_PIN = 7; //Updated 2/21
 enum BACKING_STATE {
   BACKING_IDLE = 0,       // Idle
   BACKING_MOVE = 1
-  // BACKING_RAISE = 1,      // Raising the backing
-  // BACKING_LOWER = 2       // Lowering the backing
 };
 
 BACKING_STATE backing_state = BACKING_STATE::BACKING_IDLE;
 
 unsigned long backing_start_time = 0;
-const unsigned long backing_threshold = 500;
+const unsigned long backing_threshold = 1000;
 
-bool raise = false;
-bool prev_raise = false;
+bool raise = true;
+bool prev_raise = true;
 bool recieve_backing_start_msg = false;
 
 // Moves the backing motor forward
@@ -191,7 +189,6 @@ void check_backing() {
       }
       break;
     case BACKING_STATE::BACKING_MOVE:
-      //raise = false;
       if (backing_current_time - backing_start_time > backing_threshold) {
         stop_backing();
         backing_state = BACKING_STATE::BACKING_IDLE;
@@ -271,7 +268,7 @@ bool verify_backing_complete() {
 // ----- BOX_CONVEYOR -----
 MODULE* box_conveyor_module;
 int FRONT_BEAM_BREAK_PIN = 4; //Updated 2/21
-int BACK_BEAM_BREAK_PIN = 3; //Updates 2/21
+int BACK_BEAM_BREAK_PIN = 3; //Updated 2/21
 int BOX_CONVEYOR_SPEED_PIN = 9; //Verified 2/21
 int BOX_CONVEYOR_INVERT_PIN = 6; //Verified 2/21
 
@@ -280,7 +277,7 @@ enum BOX_CONVEYOR_STATE {
   BOX_CONVEYOR_IDLE = 0, 
   BOX_CONVEYOR_ALIGN = 1,
   BOX_CONVEYOR_ADVANCE = 2,
-  BOX_CONVEYOR_ERROR = 3,
+  BOX_CONVEYOR_ERROR = 3
 };
 
 BOX_CONVEYOR_STATE box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE; 
@@ -363,37 +360,45 @@ void check_box_conveyor() {
 
   switch (box_conveyor_state) {
     case BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE:
-      if (verify_backing_complete() && deposited_disc) {
-        box_move_start = current_time;
-        box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE;
-      } else if (front_beam_broken() && back_beam_broken() == false) {
-        stop_box_conveyor();
-        raise = true;
-        backing_state = BACKING_STATE::BACKING_MOVE;
-      } else {
+      // no box present / ready for loading: start conveyor to align box
+      if (front_beam_broken() == false && back_beam_broken() == false) {
         unbroken_back_beam_start = current_time;
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN;
+      
+      // the backing is not moving and a disc has been deposited: start conveyor to prepare for next disc
+      } else if (verify_backing_complete() && deposited_disc) {
+        box_move_start = current_time;
+        box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE;
+
+      // the box is full: stop the conveyor and raise the backing
+      } else if (front_beam_broken() == true && back_beam_broken() == false) {
+        stop_box_conveyor();
+        raise = true;
+        loginfo("The box is full, please replace");
       }
       break;
+
     case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE:
       start_box_conveyor();
-      if (current_time - box_move_start > 1000) {
+      if (current_time - box_move_start > 500) {
         stop_box_conveyor();
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
       }
       break;
+
     case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN:
       start_box_conveyor();
       if (front_beam_broken()) {
         stop_box_conveyor();
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
         raise = false;
-        backing_state = BACKING_STATE::BACKING_MOVE;
+
       } else if (current_time - unbroken_back_beam_start > unbroken_box_beam_threshold) {
         stop_box_conveyor();
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ERROR;
         logerr("No boxes detected for too long. Add more boxes.");
       }
+
     case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ERROR:
       stop_box_conveyor();
       if (back_beam_broken()){
