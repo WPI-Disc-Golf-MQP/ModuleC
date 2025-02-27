@@ -14,12 +14,8 @@ Adafruit_VL6180X vl = Adafruit_VL6180X();
 // ----- CHUTE -----
 MODULE* chute_module;
 int CHUTE_BEAM_BREAK_PIN = 2;
-int CHUTE_SPEED_PIN = 11;
-int CHUTE_INVERT_PIN = A0;
-// int CHUTE_SPEED_PIN = 9;  
-// int CHUTE_INVERT_PIN = 6;
-// int CHUTE_SPEED_PIN = 8;  
-// int CHUTE_INVERT_PIN = 5;
+int CHUTE_SPEED_PIN = A0;
+int CHUTE_INVERT_PIN = 5;
 
 enum CHUTE_STATE {
   CHUTE_IDLE = 0,           // Idle
@@ -35,14 +31,14 @@ bool recieve_chute_start_msg = false;
 
 // Moves the chute motor forward
 void chute_move_forward(int speed = 230) {
-  digitalWrite(CHUTE_INVERT_PIN, LOW);
+  digitalWrite(CHUTE_INVERT_PIN, HIGH);
   analogWrite(CHUTE_SPEED_PIN, speed); // start
   loginfo("chute moving forward");
 }
 
 // Moves the chute motor backward
 void chute_move_backward(int speed = 230) {
-  digitalWrite(CHUTE_INVERT_PIN, HIGH);
+  digitalWrite(CHUTE_INVERT_PIN, LOW);
   analogWrite(CHUTE_SPEED_PIN, speed); // start
   loginfo("chute moving backward");
 }
@@ -118,7 +114,7 @@ bool verify_chute_complete() {
 // ----- BACKING -----
 MODULE* backing_module;
 int BACKING_SPEED_PIN = 8;
-int BACKING_INVERT_PIN = 5;
+int BACKING_INVERT_PIN = 7;
 
 enum BACKING_STATE {
   BACKING_IDLE = 0,       // Idle
@@ -130,30 +126,28 @@ enum BACKING_STATE {
 BACKING_STATE backing_state = BACKING_STATE::BACKING_IDLE;
 
 unsigned long backing_start_time = 0;
-const unsigned long backing_threshold = 2000;
+const unsigned long backing_threshold = 500;
 
 bool raise = false;
-bool prev_raise = raise;
+bool prev_raise = false;
 bool recieve_backing_start_msg = false;
 
 // Moves the backing motor forward
 void backing_move_forward(int speed = 230) {
-  digitalWrite(BACKING_INVERT_PIN, LOW);
+  digitalWrite(BACKING_INVERT_PIN, HIGH);
   analogWrite(BACKING_SPEED_PIN, speed);
   loginfo("backing moving down");
 }
 
 // Moves the backing motor backward
 void backing_move_backward(int speed = 230) {
-  // backing_state = BACKING_STATE::BACKING_RAISE;
-  digitalWrite(BACKING_INVERT_PIN, HIGH);
+  digitalWrite(BACKING_INVERT_PIN, LOW);
   analogWrite(BACKING_SPEED_PIN, speed);
   loginfo("backing moving up");
 }
 
 // Starts the backing motor
 void start_backing() {
-  backing_start_time = millis();
   if (raise) {
     backing_move_forward();
   }else{
@@ -170,8 +164,10 @@ void stop_backing() {
 bool check_raise_status() {
   if (prev_raise != raise){
     prev_raise = raise;
+    loginfo("backing returning true to move");
     return true;
   }
+  loginfo("backing returning false to move");
   return false;
 }
 
@@ -272,9 +268,9 @@ bool verify_backing_complete() {
 
 // ----- BOX_CONVEYOR -----
 MODULE* box_conveyor_module;
-int FRONT_BEAM_BREAK_PIN = 3;
-int BACK_BEAM_BREAK_PIN = 4;
-int BOX_CONVEYOR_SPEED_PIN = 9;  
+int FRONT_BEAM_BREAK_PIN = 4;
+int BACK_BEAM_BREAK_PIN = 3;
+int BOX_CONVEYOR_SPEED_PIN = 9;
 int BOX_CONVEYOR_INVERT_PIN = 6;
 
 enum BOX_CONVEYOR_STATE {
