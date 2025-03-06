@@ -28,6 +28,7 @@ CHUTE_STATE chute_state = CHUTE_STATE::CHUTE_IDLE;
 bool is_disc_present = false;
 bool deposited_disc = false;
 bool recieve_chute_start_msg = false;
+bool box_full = false;
 
 // Moves the chute motor forward
 void chute_move_forward(int speed = 230) {
@@ -85,18 +86,20 @@ void calibrate_chute() {
 void check_chute() {
   switch (chute_state){
     case CHUTE_STATE::CHUTE_IDLE:
-      chute_state = CHUTE_STATE::CHUTE_RECIEVE;
+      if(chute_beam_broken()) {
+        deposited_disc = false;
+        chute_state = CHUTE_STATE::CHUTE_RECIEVE;
+      }
       break;
     case CHUTE_STATE::CHUTE_RECIEVE:
-      deposited_disc = false;
-      if(chute_beam_broken()) {
+      if(!box_full) {
         chute_state = CHUTE_STATE::CHUTE_SEND;
         start_chute();
       }
       break;
     case CHUTE_STATE::CHUTE_SEND:
       if(chute_beam_broken() == false){
-        chute_state = CHUTE_STATE::CHUTE_RECIEVE;
+        chute_state = CHUTE_STATE::CHUTE_IDLE;
         stop_chute();
         deposited_disc = true;
       }
@@ -186,16 +189,13 @@ void check_backing() {
       if (check_raise_status()) {
         backing_start_time = backing_current_time;
         backing_state = BACKING_STATE::BACKING_MOVE;
-      } else {
-        stop_backing();
+        start_backing();
       }
       break;
     case BACKING_STATE::BACKING_MOVE:
       if (backing_current_time - backing_start_time > backing_threshold) {
         stop_backing();
         backing_state = BACKING_STATE::BACKING_IDLE;
-      } else {
-        start_backing();
       }
       break;
   }
@@ -291,6 +291,7 @@ const unsigned long unbroken_box_beam_threshold = 6000;
 unsigned long box_move_start = 0;
 uint8_t read_distance();
 
+
 // Moves box conveyor forward
 void box_conveyor_move_forward(int speed = 230) {
   digitalWrite(BOX_CONVEYOR_INVERT_PIN, LOW);
@@ -368,22 +369,25 @@ void check_box_conveyor() {
       if (front_beam_broken() == false && back_beam_broken() == false) {
         unbroken_back_beam_start = current_time;
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN;
+        start_box_conveyor();
       
       // the backing is not moving and a disc has been deposited: start conveyor to prepare for next disc
       } else if (verify_backing_complete() && deposited_disc) {
         box_move_start = current_time;
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE;
+        start_box_conveyor();
 
       // the box is full: stop the conveyor and raise the backing
       } else if (front_beam_broken() == true && back_beam_broken() == false) {
         stop_box_conveyor();
         raise = true;
+        box_full = true;
         loginfo("The box is full. Please replace");
+        box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ERROR;
       }
       break;
 
     case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE:
-      start_box_conveyor();
       if (current_time - box_move_start > 500) {
         stop_box_conveyor();
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
@@ -391,23 +395,25 @@ void check_box_conveyor() {
       break;
 
     case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN:
-      start_box_conveyor();
       if (front_beam_broken()) {
         stop_box_conveyor();
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
         raise = false;
+        box_full = false;
 
       } else if (current_time - unbroken_back_beam_start > unbroken_box_beam_threshold) {
         stop_box_conveyor();
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ERROR;
         logerr("No boxes detected for too long. Add more boxes.");
       }
+      break;
 
     case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ERROR:
-      stop_box_conveyor();
       if (back_beam_broken()){
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN;
+        start_box_conveyor();
       }
+      break;
   }
  }
 
