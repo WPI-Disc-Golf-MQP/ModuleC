@@ -127,7 +127,7 @@ enum BACKING_STATE {
 BACKING_STATE backing_state = BACKING_STATE::BACKING_IDLE;
 
 unsigned long backing_start_time = 0;
-const unsigned long backing_threshold = 1000;
+const unsigned long backing_threshold = 500;
 
 bool raise = true;
 bool prev_raise = true;
@@ -135,14 +135,14 @@ bool recieve_backing_start_msg = false;
 
 // Moves the backing motor forward
 void backing_move_forward(int speed = 230) {
-  digitalWrite(BACKING_INVERT_PIN, HIGH);
+  digitalWrite(BACKING_INVERT_PIN, LOW);
   analogWrite(BACKING_SPEED_PIN, speed);
   loginfo("backing moving down");
 }
 
 // Moves the backing motor backward
 void backing_move_backward(int speed = 230) {
-  digitalWrite(BACKING_INVERT_PIN, LOW);
+  digitalWrite(BACKING_INVERT_PIN, HIGH);
   analogWrite(BACKING_SPEED_PIN, speed);
   loginfo("backing moving up");
 }
@@ -165,10 +165,10 @@ void stop_backing() {
 bool check_raise_status() {
   if (prev_raise != raise){
     prev_raise = raise;
-    loginfo("backing returning true to move");
+    // loginfo("backing returning true to move");
     return true;
   }
-  loginfo("backing returning false to move");
+  // loginfo("backing returning false to move");
   return false;
 }
 
@@ -293,7 +293,7 @@ uint8_t read_distance();
 
 
 // Moves box conveyor forward
-void box_conveyor_move_forward(int speed = 230) {
+void box_conveyor_move_forward(int speed = 150) {
   digitalWrite(BOX_CONVEYOR_INVERT_PIN, LOW);
   analogWrite(BOX_CONVEYOR_SPEED_PIN, speed); // start
   loginfo("box_conveyor moving forward");
@@ -329,7 +329,7 @@ bool back_beam_broken() {
 //bool move_box_conveyor = (read_distance() > 50) && !box_conveyor_beam_broken;
 void start_box_conveyor() {
   nh.loginfo("Box conveyor is starting");
-    box_conveyor_move_forward();
+  box_conveyor_move_forward();
 }
 
   // if(box_conveyor_state == BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE) {
@@ -374,6 +374,7 @@ void check_box_conveyor() {
       // the backing is not moving and a disc has been deposited: start conveyor to prepare for next disc
       } else if (verify_backing_complete() && deposited_disc) {
         box_move_start = current_time;
+        deposited_disc = false;
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE;
         start_box_conveyor();
 
@@ -388,6 +389,7 @@ void check_box_conveyor() {
       break;
 
     case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE:
+      loginfo("Conveyor Advancing");
       if (current_time - box_move_start > 500) {
         stop_box_conveyor();
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
@@ -395,13 +397,14 @@ void check_box_conveyor() {
       break;
 
     case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN:
+      loginfo("Conveyor Aligning");
       if (front_beam_broken()) {
         stop_box_conveyor();
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
         raise = false;
         box_full = false;
 
-      } else if (current_time - unbroken_back_beam_start > unbroken_box_beam_threshold) {
+      } else if (!back_beam_broken() && current_time - unbroken_back_beam_start > unbroken_box_beam_threshold) {
         stop_box_conveyor();
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ERROR;
         logerr("No boxes detected for too long. Add more boxes.");
@@ -409,7 +412,7 @@ void check_box_conveyor() {
       break;
 
     case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ERROR:
-      if (back_beam_broken()){
+      if (back_beam_broken()){ // Change to allow user to say when a box is loaded
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN;
         start_box_conveyor();
       }
@@ -555,7 +558,8 @@ void loop() {
   // check_tamper();
   check_box_conveyor();
   // loginfo("System is running");
-  delay(1000);
+  // delay(1000);
+  delay(200);
 }
 
 // ----- testing ----- 
