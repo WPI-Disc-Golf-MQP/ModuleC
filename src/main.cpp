@@ -8,8 +8,9 @@
 
 #include <SPI.h>
 #include <Wire.h>
-#include "Adafruit_VL6180X.h"
-Adafruit_VL6180X vl = Adafruit_VL6180X();
+// TODO:BACKING
+// #include "Adafruit_VL6180X.h"
+// Adafruit_VL6180X vl = Adafruit_VL6180X();
 
 // ----- CHUTE -----
 MODULE* chute_module;
@@ -119,6 +120,10 @@ MODULE* backing_module;
 int BACKING_SPEED_PIN = 8; //Updates 2/21
 int BACKING_INVERT_PIN = 7; //Updated 2/21
 
+// TODO:BACKING
+// int BACKING_RANGEFINDER_PIN_SCL = ;
+// int BACKING_RANGEFINER_PIN_SDA = ;
+
 enum BACKING_STATE {
   BACKING_IDLE = 0,       // Idle
   BACKING_MOVE = 1
@@ -126,12 +131,20 @@ enum BACKING_STATE {
 
 BACKING_STATE backing_state = BACKING_STATE::BACKING_IDLE;
 
+// TODO:BACKING
+// Adafruit_VL6180X vl6180x;
+// uint8_t backing_read_distance();
+// int backing_raise_threshold = 10;
+// int backing_lower_threshold = 70;
+
 unsigned long backing_start_time = 0;
 const unsigned long backing_threshold = 500;
 
+
+
 bool raise = true;
 bool prev_raise = true;
-bool recieve_backing_start_msg = false;
+bool slotted_box = false;
 
 // Moves the backing motor forward
 void backing_move_forward(int speed = 230) {
@@ -174,10 +187,9 @@ bool check_raise_status() {
 
 // Calibrates the backing
 void calibrate_backing() {
-  loginfo("calibrate backing; TODO"); //TODO: Implement calibration
-  // possibly needs rangefinder to function
-  // while (rangefinder_dist > upper_threshold) {
-  //   backing_move_backward();
+  loginfo("calibrate backing; TODO"); //TODO:BACKING
+  // while (backing_read_distance() > backing_raise_threshold) {
+  //   backing_move_forward();
   // }
  }
 
@@ -186,13 +198,18 @@ void check_backing() {
   unsigned long backing_current_time = millis();
   switch (backing_state){
     case BACKING_STATE::BACKING_IDLE:
-      if (check_raise_status()) {
+      if (check_raise_status() && !slotted_box) {
         backing_start_time = backing_current_time;
         backing_state = BACKING_STATE::BACKING_MOVE;
         start_backing();
       }
       break;
     case BACKING_STATE::BACKING_MOVE:
+      // TODO:BACKING
+      // if (raise && backing_read_distance() < backing_raise_threshold || !raise && backing_read_distance() > backing_lower_threshold) {
+      //   stop_backing();
+      //   backing_state = BACKING_STATE::BACKING_IDLE;
+      // }
       if (backing_current_time - backing_start_time > backing_threshold) {
         stop_backing();
         backing_state = BACKING_STATE::BACKING_IDLE;
@@ -205,6 +222,51 @@ void check_backing() {
 bool verify_backing_complete() {
   return backing_state == BACKING_STATE::BACKING_IDLE;
 }
+
+//  uint8_t backing_read_distance() { //This is the requesting topics error
+//     uint8_t range = vl6180x.readRange();
+//     nh.loginfo("Distance reading:");
+//     if (range == -1) {
+//       nh.logerror("Failed to read distance.");
+//     }
+//     uint8_t status = vl6180x.readRangeStatus();
+
+//    if (status == VL6180X_ERROR_NONE) return range;
+  
+//   //  Some error occurred, print it out!
+//    Serial.print("Error: ");
+  
+//    if  ((status >= VL6180X_ERROR_SYSERR_1) && (status <= VL6180X_ERROR_SYSERR_5)) {
+//      logerr("*** VL6180X System error");
+//    }
+//    else if (status == VL6180X_ERROR_ECEFAIL) {
+//      logerr("VL6180X: ECE failure");
+//    }
+//    else if (status == VL6180X_ERROR_NOCONVERGE) {
+//      logerr("VL6180X: No convergence");
+//    }
+//    else if (status == VL6180X_ERROR_RANGEIGNORE) {
+//      logerr("VL6180X: Ignoring range");
+//    }
+//    else if (status == VL6180X_ERROR_SNR) {
+//      logerr("VL6180X: Signal/Noise ratio error");
+//    }
+//    else if (status == VL6180X_ERROR_RAWUFLOW) {
+//      logerr("VL6180X: Raw reading underflow");
+//    }
+//    else if (status == VL6180X_ERROR_RAWOFLOW) {
+//      logerr("VL6180X: Raw reading overflow");
+//    }
+//    else if (status == VL6180X_ERROR_RANGEUFLOW) {
+//      logerr("VL6180X: Range reading underflow");
+//    }
+//    else if (status == VL6180X_ERROR_RANGEOFLOW) {
+//      logerr("VL6180X: Range reading overflow");
+//    } else {
+//      logerr("VL6180X: Unknown error");
+//    }
+//    return -1;
+//  }
 
 
 
@@ -283,13 +345,13 @@ enum BOX_CONVEYOR_STATE {
 
 BOX_CONVEYOR_STATE box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE; 
 
-Adafruit_VL6180X vl6180x;
+
 
 unsigned long unbroken_back_beam_start = 0;
 unsigned long unbroken_front_beam_start = 0;
 const unsigned long unbroken_box_beam_threshold = 6000;
 unsigned long box_move_start = 0;
-uint8_t read_distance();
+// uint8_t read_distance();
 
 
 // Moves box conveyor forward
@@ -381,7 +443,9 @@ void check_box_conveyor() {
       // the box is full: stop the conveyor and raise the backing
       } else if (front_beam_broken() == true && back_beam_broken() == false) {
         stop_box_conveyor();
-        raise = true;
+        if (!slotted_box) {
+          raise = true;
+        }
         box_full = true;
         loginfo("The box is full. Please replace");
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ERROR;
@@ -401,7 +465,9 @@ void check_box_conveyor() {
       if (front_beam_broken()) {
         stop_box_conveyor();
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
-        raise = false;
+        if (!slotted_box) {
+          raise = false;
+        }
         box_full = false;
 
       } else if (!back_beam_broken() && current_time - unbroken_back_beam_start > unbroken_box_beam_threshold) {
@@ -424,66 +490,10 @@ bool verify_box_conveyor_complete() {
    return box_conveyor_state == BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
 }
 
-uint8_t read_distance() {
-  return -1;
-}
-
-//  uint8_t read_distance() { //This is the requesting topics error
-//     uint8_t range = vl6180x.readRange();
-//     nh.loginfo("Distance reading:");
-//     if (range == -1) {
-//       nh.logerror("Failed to read distance.");
-//     }
-//     uint8_t status = vl6180x.readRangeStatus();
-
-//    if (status == VL6180X_ERROR_NONE) return range;
-  
-//   //  Some error occurred, print it out!
-//    Serial.print("Error: ");
-  
-//    if  ((status >= VL6180X_ERROR_SYSERR_1) && (status <= VL6180X_ERROR_SYSERR_5)) {
-//      logerr("*** VL6180X System error");
-//    }
-//    else if (status == VL6180X_ERROR_ECEFAIL) {
-//      logerr("VL6180X: ECE failure");
-//    }
-//    else if (status == VL6180X_ERROR_NOCONVERGE) {
-//      logerr("VL6180X: No convergence");
-//    }
-//    else if (status == VL6180X_ERROR_RANGEIGNORE) {
-//      logerr("VL6180X: Ignoring range");
-//    }
-//    else if (status == VL6180X_ERROR_SNR) {
-//      logerr("VL6180X: Signal/Noise ratio error");
-//    }
-//    else if (status == VL6180X_ERROR_RAWUFLOW) {
-//      logerr("VL6180X: Raw reading underflow");
-//    }
-//    else if (status == VL6180X_ERROR_RAWOFLOW) {
-//      logerr("VL6180X: Raw reading overflow");
-//    }
-//    else if (status == VL6180X_ERROR_RANGEUFLOW) {
-//      logerr("VL6180X: Range reading underflow");
-//    }
-//    else if (status == VL6180X_ERROR_RANGEOFLOW) {
-//      logerr("VL6180X: Range reading overflow");
-//    } else {
-//      logerr("VL6180X: Unknown error");
-//    }
-//    return -1;
-//  }
-
-// void check_box_conveyor() {
-//   switch (box_conveyor_state){
-//     case BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE:
-//       stop_box_conveyor();
-//       break;
-//     default:
-//       logwarn("Invalid box_conveyor state");
-//       break;
-//   }
-//   box_conveyor_module->publish_state((int) box_conveyor_state);
+// uint8_t read_distance() {
+//   return -1;
 // }
+
 
 
 
@@ -495,8 +505,9 @@ void setup() {
 
   init_std_node();
 
-  // Wire.begin(BOX_CONVEYOR_RANGEFINDER_PIN_SDA, BOX_CONVEYOR_RANGEFINDER_PIN_SCL); //Obsolete?
-  vl6180x.begin();
+  // TODO:BACKING
+  // Wire.begin(BACKING_RANGEFINDER_PIN_SDA, BACKING_RANGEFINDER_PIN_SCL);
+  // vl6180x.begin();
 
   MODULE* chute_module = init_module("chute",
     start_chute, 
@@ -543,9 +554,10 @@ void setup() {
   pinMode(BOX_CONVEYOR_SPEED_PIN, OUTPUT);
   pinMode(BOX_CONVEYOR_INVERT_PIN, OUTPUT);
 
+  // TODO:BACKING
   // if (! vl.begin()) {
-  //   logerr("*** Failed to find VL6180X (Box Conveyor Rangefinder) sensor");
-  // } else loginfo("VL6180X (Box Conveyor Rangefinder) Sensor found!");
+  //   logerr("*** Failed to find VL6180X (backing Rangefinder) sensor");
+  // } else loginfo("VL6180X (backing Rangefinder) Sensor found!");
 
   loginfo("setup() Complete");
 }
