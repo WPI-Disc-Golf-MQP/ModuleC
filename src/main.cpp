@@ -9,8 +9,8 @@
 #include <SPI.h>
 #include <Wire.h>
 // TODO:BACKING
-// #include "Adafruit_VL6180X.h"
-// Adafruit_VL6180X vl = Adafruit_VL6180X();
+#include "Adafruit_VL6180X.h"
+Adafruit_VL6180X vl = Adafruit_VL6180X();
 
 // ----- CHUTE -----
 MODULE* chute_module;
