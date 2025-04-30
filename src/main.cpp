@@ -138,7 +138,7 @@ BACKING_STATE backing_state = BACKING_STATE::BACKING_IDLE;
 // int backing_lower_threshold = 70;
 
 unsigned long backing_start_time = 0;
-const unsigned long backing_threshold = 500;
+const unsigned long backing_threshold = 1000;
 
 
 
@@ -164,6 +164,7 @@ void backing_move_backward(int speed = 230) {
 void start_backing() {
   if (raise) {
     backing_move_forward();
+
   }else{
     backing_move_backward();
   }
@@ -340,7 +341,8 @@ enum BOX_CONVEYOR_STATE {
   BOX_CONVEYOR_IDLE = 0, 
   BOX_CONVEYOR_ALIGN = 1,
   BOX_CONVEYOR_ADVANCE = 2,
-  BOX_CONVEYOR_ERROR = 3
+  BOX_CONVEYOR_ERROR = 3,
+  BOX_CONVEYOR_EJECT_BOX = 4
 };
 
 BOX_CONVEYOR_STATE box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE; 
@@ -351,6 +353,9 @@ unsigned long unbroken_back_beam_start = 0;
 unsigned long unbroken_front_beam_start = 0;
 const unsigned long unbroken_box_beam_threshold = 6000;
 unsigned long box_move_start = 0;
+unsigned long eject_box_start;
+const unsigned long eject_box_threshold = 2000;
+bool eject_box = false;
 // uint8_t read_distance();
 
 
@@ -449,6 +454,10 @@ void check_box_conveyor() {
         box_full = true;
         loginfo("The box is full. Please replace");
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_ERROR;
+      
+      } else if (eject_box){
+        box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_EJECT_BOX;
+        start_box_conveyor();
       }
       break;
 
@@ -483,6 +492,16 @@ void check_box_conveyor() {
         start_box_conveyor();
       }
       break;
+    
+    case BOX_CONVEYOR_STATE::BOX_CONVEYOR_EJECT_BOX:
+      if (!back_beam_broken() && !front_beam_broken()) {
+        eject_box_start = current_time;
+        if (current_time - eject_box_start > eject_box_threshold) {
+          stop_box_conveyor();
+          eject_box = false;
+          box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
+        }  
+      }
   }
  }
 
