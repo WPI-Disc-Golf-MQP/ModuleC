@@ -351,8 +351,10 @@ BOX_CONVEYOR_STATE box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
 
 unsigned long unbroken_back_beam_start = 0;
 unsigned long unbroken_front_beam_start = 0;
+unsigned long broken_front_beam_start = 0;
 const unsigned long unbroken_box_beam_threshold = 6000;
 unsigned long box_move_start = 0;
+unsigned long box_advance_threshold = 500;
 unsigned long eject_box_start;
 const unsigned long eject_box_threshold = 2000;
 bool eject_box = false;
@@ -457,13 +459,14 @@ void check_box_conveyor() {
       
       } else if (eject_box){
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_EJECT_BOX;
+        raise = true;
         start_box_conveyor();
       }
       break;
 
     case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ADVANCE:
       loginfo("Conveyor Advancing");
-      if (current_time - box_move_start > 500) {
+      if (current_time - box_move_start > box_advance_threshold) {
         stop_box_conveyor();
         box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
       }
@@ -472,12 +475,15 @@ void check_box_conveyor() {
     case BOX_CONVEYOR_STATE::BOX_CONVEYOR_ALIGN:
       loginfo("Conveyor Aligning");
       if (front_beam_broken()) {
-        stop_box_conveyor();
-        box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
-        if (!slotted_box) {
-          raise = false;
+        broken_front_beam_start = current_time;
+        if (current_time - broken_front_beam_start > box_advance_threshold) {
+          stop_box_conveyor();
+          box_conveyor_state = BOX_CONVEYOR_STATE::BOX_CONVEYOR_IDLE;
+          if (!slotted_box) {
+            raise = false;
+          }
+          box_full = false;
         }
-        box_full = false;
 
       } else if (!back_beam_broken() && current_time - unbroken_back_beam_start > unbroken_box_beam_threshold) {
         stop_box_conveyor();
